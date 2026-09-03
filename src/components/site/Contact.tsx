@@ -20,15 +20,11 @@ export function Contact() {
       <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
         <div className="grid gap-10 md:grid-cols-2 lg:gap-16">
           <Reveal>
-            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">
-              {contact.eyebrow}
-            </p>
+            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">{contact.eyebrow}</p>
             <h2 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance text-bone sm:text-4xl">
               {contact.heading}
             </h2>
-            <p className="mt-5 max-w-[44ch] leading-relaxed text-bone/65">
-              {contact.body}
-            </p>
+            <p className="mt-5 max-w-[44ch] leading-relaxed text-bone/65">{contact.body}</p>
             <dl className="mt-9 space-y-5 text-sm">
               {contact.details.map((d) => (
                 <div key={d.label} className="flex gap-3">
@@ -54,10 +50,7 @@ export function Contact() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label
-                      htmlFor="name"
-                      className="text-xs font-medium tracking-wide text-ink/70"
-                    >
+                    <label htmlFor="name" className="text-xs font-medium tracking-wide text-ink/70">
                       {leadHandling.form.name.label}
                     </label>
                     <input

@@ -25,7 +25,10 @@ export const researchBusinessServer = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { authorizeProviderOperation } =
       await import("./provider-operation-authorization.server");
-    await authorizeProviderOperation(data, { operation: "business_research", minimumTier: "launch" });
+    await authorizeProviderOperation(data, {
+      operation: "business_research",
+      minimumTier: "launch",
+    });
     const { researchBusinessFromQuery } = await import("./research-business.server");
     return researchBusinessFromQuery(data.query);
   });

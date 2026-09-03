@@ -84,7 +84,7 @@ export async function findPexelsImage(
         generatedAt: new Date().toISOString(),
         src,
         cacheKey: `pexels-${selected.id}-${requirement.section}`,
-      sourceType: "pexels",
+        sourceType: "pexels",
         providerName: "Pexels",
         originalSourceUrl: selected.url,
         attribution: `Photo by ${selected.photographer} on Pexels (${selected.photographer_url})`,

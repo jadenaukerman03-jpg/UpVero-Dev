@@ -93,7 +93,9 @@ function createProfile(query: ResearchQuery, findings: ResearchFinding[]): Busin
         ? "Research completed with the development/mock provider only."
         : `Real public-web research completed with ${findings.length} source${findings.length === 1 ? "" : "s"}.`,
       "Verify every field with its cited public source before publishing or contacting a business.",
-      query.city || query.state ? `Research query location: ${[query.city, query.state].filter(Boolean).join(", ")}.` : "",
+      query.city || query.state
+        ? `Research query location: ${[query.city, query.state].filter(Boolean).join(", ")}.`
+        : "",
     ]
       .filter(Boolean)
       .join(" "),
@@ -135,10 +137,17 @@ export async function researchBusiness(
   providers: BusinessResearchProvider[] = [mockResearchProvider],
 ): Promise<ResearchJobResult> {
   const settled = await Promise.allSettled(providers.map((provider) => provider.research(query)));
-  const failures = settled.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+  const failures = settled.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
   if (failures.length > 0) {
-    console.error("Research provider failure", failures.map((failure) => failure.reason));
-    throw new Error("Research provider error: the enabled provider could not complete the request.");
+    console.error(
+      "Research provider failure",
+      failures.map((failure) => failure.reason),
+    );
+    throw new Error(
+      "Research provider error: the enabled provider could not complete the request.",
+    );
   }
   const findings = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
   const profile = createProfile(query, findings);

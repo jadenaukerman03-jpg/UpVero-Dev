@@ -14,13 +14,20 @@ function authorizationFailure(status: number, message: string): never {
   });
 }
 
-async function requireWithinCustomerQuota(ownerId: string, operation: "business_creation" | "checkout_creation") {
+async function requireWithinCustomerQuota(
+  ownerId: string,
+  operation: "business_creation" | "checkout_creation",
+) {
   const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
-  const { data, error } = await createSupabaseAdminClient().rpc("consume_provider_operation_quota", {
-    p_owner_id: ownerId,
-    p_operation: operation,
-  });
-  if (error || data !== true) authorizationFailure(429, "Too many requests. Please try again later.");
+  const { data, error } = await createSupabaseAdminClient().rpc(
+    "consume_provider_operation_quota",
+    {
+      p_owner_id: ownerId,
+      p_operation: operation,
+    },
+  );
+  if (error || data !== true)
+    authorizationFailure(429, "Too many requests. Please try again later.");
 }
 
 async function requireAuthenticatedOwner(accessToken: string | undefined) {
@@ -110,7 +117,8 @@ export const saveGeneratedWebsite = createServerFn({ method: "POST" })
         .eq("id", businessId)
         .maybeSingle();
       if (error) serverError(error, "verify the business owner");
-      if (!business) throw new Error("This business is unavailable or does not belong to your account.");
+      if (!business)
+        throw new Error("This business is unavailable or does not belong to your account.");
     } else {
       const { data: business, error } = await client
         .from("businesses")
@@ -156,7 +164,8 @@ export const savePurchaseDraft = createServerFn({ method: "POST" })
         .eq("id", data.websiteId)
         .maybeSingle();
       if (error) serverError(error, "verify website ownership");
-      if (!website) throw new Error("This website is unavailable or does not belong to your account.");
+      if (!website)
+        throw new Error("This website is unavailable or does not belong to your account.");
     }
 
     const { data: draft, error } = await client

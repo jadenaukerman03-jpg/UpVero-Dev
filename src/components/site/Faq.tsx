@@ -12,9 +12,7 @@ export function Faq() {
       <div className="mx-auto max-w-3xl px-6 py-16 sm:px-10 sm:py-24">
         <Reveal>
           <div className="mb-10">
-            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">
-              {faq.eyebrow}
-            </p>
+            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">{faq.eyebrow}</p>
             <h2 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance text-ink sm:text-4xl">
               {faq.heading}
             </h2>
@@ -31,9 +29,7 @@ export function Faq() {
                   onClick={() => setOpenIndex(open ? null : i)}
                   className="flex w-full items-center justify-between gap-6 py-5 text-left"
                 >
-                  <h3 className="font-display text-lg font-medium text-ink">
-                    {item.question}
-                  </h3>
+                  <h3 className="font-display text-lg font-medium text-ink">{item.question}</h3>
                   <Plus
                     className={`size-5 shrink-0 text-clay transition-transform duration-300 ${open ? "rotate-45" : ""}`}
                   />
@@ -43,9 +39,7 @@ export function Faq() {
                   style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
                 >
                   <div className="overflow-hidden">
-                    <p className="pb-5 text-sm leading-relaxed text-ink/65">
-                      {item.answer}
-                    </p>
+                    <p className="pb-5 text-sm leading-relaxed text-ink/65">{item.answer}</p>
                   </div>
                 </div>
               </div>

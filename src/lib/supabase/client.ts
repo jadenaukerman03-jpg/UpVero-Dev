@@ -11,11 +11,11 @@ function requiredBrowserEnvironment(name: "VITE_SUPABASE_URL" | "VITE_SUPABASE_P
 /** Browser-safe client. It never receives the Supabase secret key. */
 export function createBrowserSupabaseClient() {
   browserClient ??= createClient(
-      requiredBrowserEnvironment("VITE_SUPABASE_URL"),
-      requiredBrowserEnvironment("VITE_SUPABASE_PUBLISHABLE_KEY"),
-      {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-      },
-    );
+    requiredBrowserEnvironment("VITE_SUPABASE_URL"),
+    requiredBrowserEnvironment("VITE_SUPABASE_PUBLISHABLE_KEY"),
+    {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    },
+  );
   return browserClient;
 }

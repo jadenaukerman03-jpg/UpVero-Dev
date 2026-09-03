@@ -8,9 +8,7 @@ export function Testimonials() {
       <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
         <Reveal>
           <div className="mb-12 max-w-[40ch]">
-            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">
-              {reviews.eyebrow}
-            </p>
+            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">{reviews.eyebrow}</p>
             <h2 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance text-ink sm:text-4xl">
               {reviews.heading}
             </h2>

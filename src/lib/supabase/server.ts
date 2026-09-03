@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-function requiredServerEnvironment(name: "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SECRET_KEY") {
+function requiredServerEnvironment(
+  name: "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SECRET_KEY",
+) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is not configured on the server.`);
   return value;

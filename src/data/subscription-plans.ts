@@ -1,7 +1,4 @@
-import {
-  tierDefinitions,
-  type SubscriptionTier,
-} from "./customization-tiers";
+import { tierDefinitions, type SubscriptionTier } from "./customization-tiers";
 
 export type SubscriptionPlan = {
   id: SubscriptionTier;

@@ -51,7 +51,11 @@ function withSecurityHeaders(response: Response): Response {
         "connect-src 'self' https://kvgjtbulyuepmbhoflvi.supabase.co;",
     );
   }
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 function isH3SwallowedErrorBody(body: string): boolean {
@@ -71,10 +75,12 @@ export default {
       return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response));
     } catch (error) {
       console.error(error);
-      return withSecurityHeaders(new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }));
+      return withSecurityHeaders(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
     }
   },
 };

@@ -63,19 +63,65 @@ export function AuthPanel() {
         {signedInEmail ? (
           <div className="mt-5">
             <p className="text-sm leading-relaxed text-ink/70">Signed in as {signedInEmail}.</p>
-            <button type="button" disabled={busy} onClick={signOut} className="mt-5 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bone disabled:opacity-60">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={signOut}
+              className="mt-5 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bone disabled:opacity-60"
+            >
               Sign out
             </button>
           </div>
         ) : (
           <form className="mt-6 space-y-4" onSubmit={submit}>
-            <label className="block text-sm font-medium">Email<input className="mt-1 w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-            <label className="block text-sm font-medium">Password<input className="mt-1 w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm" type="password" autoComplete={mode === "sign-in" ? "current-password" : "new-password"} minLength={8} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-            <button disabled={busy} className="w-full rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bone disabled:opacity-60">{busy ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}</button>
+            <label className="block text-sm font-medium">
+              Email
+              <input
+                className="mt-1 w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Password
+              <input
+                className="mt-1 w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm"
+                type="password"
+                autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+                minLength={8}
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <button
+              disabled={busy}
+              className="w-full rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bone disabled:opacity-60"
+            >
+              {busy ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}
+            </button>
           </form>
         )}
-        {message && <p className="mt-4 text-sm text-ink/70" role="status">{message}</p>}
-        {!signedInEmail && <button type="button" className="mt-5 text-sm font-medium text-clay underline" onClick={() => { setMode((current) => current === "sign-in" ? "sign-up" : "sign-in"); setMessage(""); }}>{mode === "sign-in" ? "Need an account? Sign up" : "Already have an account? Sign in"}</button>}
+        {message && (
+          <p className="mt-4 text-sm text-ink/70" role="status">
+            {message}
+          </p>
+        )}
+        {!signedInEmail && (
+          <button
+            type="button"
+            className="mt-5 text-sm font-medium text-clay underline"
+            onClick={() => {
+              setMode((current) => (current === "sign-in" ? "sign-up" : "sign-in"));
+              setMessage("");
+            }}
+          >
+            {mode === "sign-in" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+          </button>
+        )}
       </section>
     </main>
   );

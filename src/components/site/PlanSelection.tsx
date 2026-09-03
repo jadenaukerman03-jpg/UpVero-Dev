@@ -59,7 +59,8 @@ export function PlanSelection() {
   const [notice, setNotice] = useState("");
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const persistPurchaseDraft = useServerFn(savePurchaseDraft);
-  const selectedPlan = subscriptionPlans.find((plan) => plan.id === selectedPlanId) ?? subscriptionPlans[1]!;
+  const selectedPlan =
+    subscriptionPlans.find((plan) => plan.id === selectedPlanId) ?? subscriptionPlans[1]!;
 
   async function continueToCheckout() {
     const { data, error } = await createBrowserSupabaseClient().auth.getSession();
@@ -90,7 +91,8 @@ export function PlanSelection() {
           Choose the plan that fits your website.
         </h1>
         <p className="mt-4 max-w-2xl leading-relaxed text-ink/65">
-          Your site remains a private preview until payment is securely confirmed and ownership is assigned.
+          Your site remains a private preview until payment is securely confirmed and ownership is
+          assigned.
         </p>
 
         <div className="mt-12 grid gap-5 lg:grid-cols-3 lg:items-stretch">
@@ -110,7 +112,10 @@ export function PlanSelection() {
         <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl bg-ink p-5 text-bone sm:flex-row sm:items-center sm:p-6">
           <div>
             <p className="font-display text-xl font-medium">{selectedPlan.name}</p>
-            <p className="mt-1 text-sm text-bone/70">{formatPlanPrice(selectedPlan)} · Cancel or change plans through the future billing portal.</p>
+            <p className="mt-1 text-sm text-bone/70">
+              {formatPlanPrice(selectedPlan)} · Cancel or change plans through the future billing
+              portal.
+            </p>
           </div>
           <button
             type="button"
@@ -122,7 +127,10 @@ export function PlanSelection() {
           </button>
         </div>
         {notice && (
-          <p className="mt-4 flex items-start gap-2 rounded-xl border border-clay/30 bg-bone px-4 py-3 text-sm text-ink/75" role="status">
+          <p
+            className="mt-4 flex items-start gap-2 rounded-xl border border-clay/30 bg-bone px-4 py-3 text-sm text-ink/75"
+            role="status"
+          >
             <Lock className="mt-0.5 size-4 shrink-0 text-clay" aria-hidden="true" />
             {notice}
           </p>
