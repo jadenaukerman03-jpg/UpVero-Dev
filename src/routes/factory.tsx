@@ -8,7 +8,7 @@ import type { ResearchJobResult } from "@/data/research";
 import { validateSiteConfig, type SiteConfig } from "@/data/site";
 import { visualStyleOptions, type ImageSelectionResult, type VisualStyle } from "@/data/visuals";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { saveGeneratedWebsite } from "@/services/customer-data";
+import { createBusinessOperationScope, saveGeneratedWebsite } from "@/services/customer-data";
 import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
 import { generateSiteConfigWithAI } from "@/services/generate-site-config-with-ai";
 import { sourceImagesForSiteServer } from "@/services/source-images-for-site";
@@ -58,13 +58,24 @@ function numberValue(value: FormDataEntryValue | null): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+async function unwrapProtectedOperation<T>(operation: Promise<T>): Promise<T> {
+  const result = (await operation) as T | Response;
+  if (!(result instanceof Response)) return result;
+  let message = "This operation was not authorized.";
+  try {
+    const body = (await result.json()) as { error?: string };
+    if (body.error) message = body.error;
+  } catch {
+    // Keep the generic message if a proxy strips the structured error body.
+  }
+  throw new Error(message);
+}
+
 function FactoryRoute() {
   if (!import.meta.env.DEV) {
     return (
       <div className="grid min-h-screen place-items-center bg-sand/40 px-6 text-center text-ink">
-        <p className="text-sm text-ink/70">
-          The UpVero tool is available in development only.
-        </p>
+        <p className="text-sm text-ink/70">The UpVero tool is available in development only.</p>
       </div>
     );
   }
@@ -88,7 +99,9 @@ function FactoryDevelopmentTool() {
   const sourceImages = useServerFn(sourceImagesForSiteServer);
   const runResearch = useServerFn(researchBusinessServer);
   const persistWebsite = useServerFn(saveGeneratedWebsite);
+  const createOperationScope = useServerFn(createBusinessOperationScope);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [operationBusinessId, setOperationBusinessId] = useState<string | null>(null);
 
   function loadExampleLead() {
     const values: Record<string, string> = {
@@ -105,11 +118,31 @@ function FactoryDevelopmentTool() {
     setFormValues(values);
     setPreviewConfig(null);
     setGeneratedImages(null);
+    setOperationBusinessId(null);
     setMessage("Example lead loaded. Choose Mock Data or AI generation when ready.");
   }
 
   function updateFormValue(name: string, value: string) {
     setFormValues((current) => ({ ...current, [name]: value }));
+  }
+
+  async function requireOperationScope(
+    businessName: string | undefined,
+    industry: string | undefined,
+  ) {
+    const { data, error } = await createBrowserSupabaseClient().auth.getSession();
+    if (error || !data.session)
+      throw new Error("Sign in at /account before using AI research or image sourcing.");
+    if (operationBusinessId) {
+      return { accessToken: data.session.access_token, businessId: operationBusinessId };
+    }
+    if (!businessName?.trim())
+      throw new Error("A business name is required before using this operation.");
+    const business = await createOperationScope({
+      data: { accessToken: data.session.access_token, businessName, industry },
+    });
+    setOperationBusinessId(business.id);
+    return { accessToken: data.session.access_token, businessId: business.id };
   }
 
   async function handleResearch(event: FormEvent<HTMLFormElement>) {
@@ -121,15 +154,22 @@ function FactoryDevelopmentTool() {
     try {
       setIsResearching(true);
       setMessage("Researching the business with enabled providers…");
-      const result = await runResearch({
-        data: {
-          businessName: String(values.get("researchBusinessName") ?? "").trim(),
-          city: optionalValue(values.get("researchCity")),
-          state: optionalValue(values.get("researchState")),
-          websiteUrl: optionalValue(values.get("researchWebsiteUrl")),
-          providerMode: values.get("researchProviderMode") === "mock" ? "mock" : "real",
-        },
-      });
+      const businessName = String(values.get("researchBusinessName") ?? "").trim();
+      const scope = await requireOperationScope(businessName, undefined);
+      const result = await unwrapProtectedOperation(
+        runResearch({
+          data: {
+            ...scope,
+            query: {
+              businessName,
+              city: optionalValue(values.get("researchCity")),
+              state: optionalValue(values.get("researchState")),
+              websiteUrl: optionalValue(values.get("researchWebsiteUrl")),
+              providerMode: values.get("researchProviderMode") === "mock" ? "mock" : "real",
+            },
+          },
+        }),
+      );
       setResearchResult(result);
       setFormValues({
         businessName: result.normalizedLead.businessName ?? "",
@@ -203,7 +243,8 @@ function FactoryDevelopmentTool() {
       setIsGeneratingWithAi(true);
       setMessage("Generating website content with OpenAI…");
       const lead = createLead(readLeadInput(form));
-      const config = await generateWithAi({ data: lead });
+      const scope = await requireOperationScope(lead.businessName, lead.industry);
+      const config = await unwrapProtectedOperation(generateWithAi({ data: { ...scope, lead } }));
       setPreviewConfig(config);
       setGeneratedImages(null);
       setMessage(`Generated and validated AI content for ${lead.businessName ?? "this lead"}.`);
@@ -227,10 +268,13 @@ function FactoryDevelopmentTool() {
       setGeneratedImages(null);
       setMessage("Generating website content with OpenAI…");
       const lead = createLead(readLeadInput(form));
-      const config = await generateWithAi({ data: lead });
+      const scope = await requireOperationScope(lead.businessName, lead.industry);
+      const config = await unwrapProtectedOperation(generateWithAi({ data: { ...scope, lead } }));
       setPreviewConfig(config);
       setMessage("Website content is ready. Searching Pexels…");
-      const result = await sourceImages({ data: { lead, style: visualStyle } });
+      const result = await unwrapProtectedOperation(
+        sourceImages({ data: { ...scope, lead, style: visualStyle } }),
+      );
       setGeneratedImages(result);
       const assets = Object.fromEntries(
         result.assets.filter((asset) => asset.src).map((asset) => [asset.section, asset]),
@@ -576,9 +620,7 @@ function FactoryDevelopmentTool() {
                 disabled={isGeneratingWithAi || isGeneratingImages}
                 className="rounded-full border border-ink/20 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isGeneratingImages
-                  ? "Searching Pexels…"
-                  : "Generate AI Website + Pexels Images"}
+                {isGeneratingImages ? "Searching Pexels…" : "Generate AI Website + Pexels Images"}
               </button>
               <p className="text-sm text-ink/60" role="status">
                 {message}
@@ -588,9 +630,7 @@ function FactoryDevelopmentTool() {
           {generatedImages && (
             <p className="mt-4 text-sm text-ink/60">
               Image sourcing:{" "}
-              {generatedImages.assets
-                .map((asset) => `${asset.section}: Pexels`)
-                .join(" · ")}
+              {generatedImages.assets.map((asset) => `${asset.section}: Pexels`).join(" · ")}
             </p>
           )}
         </div>

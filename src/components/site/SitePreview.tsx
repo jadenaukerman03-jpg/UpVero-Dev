@@ -7,11 +7,7 @@ import {
   visualDirections,
   type DemoVisualDirection,
 } from "@/data/demo-themes";
-import {
-  fontOptions,
-  isOptionUnlocked,
-  type SubscriptionTier,
-} from "@/data/customization-tiers";
+import { fontOptions, isOptionUnlocked, type SubscriptionTier } from "@/data/customization-tiers";
 import type { SiteConfig } from "@/data/site";
 import { SiteConfigProvider } from "@/data/site-config-context";
 

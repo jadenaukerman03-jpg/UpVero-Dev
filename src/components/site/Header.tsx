@@ -11,9 +11,7 @@ export function Header() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6 sm:px-10">
         <a href="#top" className="flex items-center gap-2.5">
           <span className="grid size-8 place-items-center rounded-md bg-ink">
-            <span className="font-display text-sm font-semibold text-bone">
-              {brand.shortName}
-            </span>
+            <span className="font-display text-sm font-semibold text-bone">{brand.shortName}</span>
           </span>
           <span className="font-display text-lg font-semibold tracking-tight text-ink">
             {brand.name}
@@ -22,11 +20,7 @@ export function Header() {
 
         <nav className="hidden items-center gap-8 text-sm font-medium text-ink/70 md:flex">
           {navigation.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="transition-colors hover:text-ink"
-            >
+            <a key={item.href} href={item.href} className="transition-colors hover:text-ink">
               {item.label}
             </a>
           ))}
@@ -54,12 +48,7 @@ export function Header() {
         <nav className="border-t border-ink/8 bg-bone px-6 py-4 md:hidden">
           <div className="flex flex-col gap-3 text-sm font-medium text-ink/80">
             {navigation.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="py-1"
-              >
+              <a key={item.href} href={item.href} onClick={() => setOpen(false)} className="py-1">
                 {item.label}
               </a>
             ))}

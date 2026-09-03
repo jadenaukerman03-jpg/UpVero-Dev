@@ -127,10 +127,7 @@ export const fontOptions: FontOption[] = [
   },
 ];
 
-export function optionMinimumTier(
-  control: CustomizationControl,
-  id: string,
-): SubscriptionTier {
+export function optionMinimumTier(control: CustomizationControl, id: string): SubscriptionTier {
   return (
     customizationOptions.find((option) => option.control === control && option.id === id)
       ?.minimumTier ?? "professional"

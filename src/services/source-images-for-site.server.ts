@@ -14,10 +14,7 @@ function requirementFor(
   const profile = createVisualProfile(request.lead, request.style);
   const serviceContext = profile.services.slice(0, 2).join(" ") || profile.industry;
   const locationContext = profile.location ? ` ${profile.location}` : "";
-  const subject =
-    section === "hero"
-      ? "professional exterior project"
-      : "professional environment";
+  const subject = section === "hero" ? "professional exterior project" : "professional environment";
   const locationAwareQuery = `${profile.industry} ${serviceContext}${locationContext} ${subject}`;
   return {
     section,

@@ -7,7 +7,18 @@ import { generateSiteConfigFromLead } from "./generate-site-config-from-lead";
 const AI_CONTENT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["brandTagline", "seo", "headerCtaLabel", "hero", "services", "about", "faq", "contact", "form", "footerSuffix"],
+  required: [
+    "brandTagline",
+    "seo",
+    "headerCtaLabel",
+    "hero",
+    "services",
+    "about",
+    "faq",
+    "contact",
+    "form",
+    "footerSuffix",
+  ],
   properties: {
     brandTagline: { type: "string" },
     seo: {
@@ -25,7 +36,14 @@ const AI_CONTENT_SCHEMA = {
     hero: {
       type: "object",
       additionalProperties: false,
-      required: ["eyebrow", "headline", "description", "primaryCtaLabel", "secondaryCtaLabel", "metrics"],
+      required: [
+        "eyebrow",
+        "headline",
+        "description",
+        "primaryCtaLabel",
+        "secondaryCtaLabel",
+        "metrics",
+      ],
       properties: {
         eyebrow: { type: "string" },
         headline: { type: "string" },
@@ -103,7 +121,18 @@ const AI_CONTENT_SCHEMA = {
     form: {
       type: "object",
       additionalProperties: false,
-      required: ["nameLabel", "namePlaceholder", "contactLabel", "contactPlaceholder", "serviceLabel", "notesLabel", "notesPlaceholder", "submitLabel", "successHeading", "successBody"],
+      required: [
+        "nameLabel",
+        "namePlaceholder",
+        "contactLabel",
+        "contactPlaceholder",
+        "serviceLabel",
+        "notesLabel",
+        "notesPlaceholder",
+        "submitLabel",
+        "successHeading",
+        "successBody",
+      ],
       properties: {
         nameLabel: { type: "string" },
         namePlaceholder: { type: "string" },
@@ -189,12 +218,13 @@ Anti-hallucination rules:
 
 function mergeAiContent(lead: Lead, content: AiContent): SiteConfig {
   const base = generateSiteConfigFromLead(lead);
-  const services = content.services.items.length > 0
-    ? content.services.items.slice(0, 4).map((service, index) => ({
-        number: String(index + 1).padStart(2, "0"),
-        ...service,
-      }))
-    : base.services.items;
+  const services =
+    content.services.items.length > 0
+      ? content.services.items.slice(0, 4).map((service, index) => ({
+          number: String(index + 1).padStart(2, "0"),
+          ...service,
+        }))
+      : base.services.items;
   const faqItems = content.faq.items.length > 0 ? content.faq.items : base.faq.items;
 
   return validateSiteConfig({
@@ -211,15 +241,28 @@ function mergeAiContent(lead: Lead, content: AiContent): SiteConfig {
       secondaryCta: { ...base.hero.secondaryCta, label: content.hero.secondaryCtaLabel },
       metrics: content.hero.metrics,
     },
-    services: { ...base.services, eyebrow: content.services.eyebrow, heading: content.services.heading, items: services },
+    services: {
+      ...base.services,
+      eyebrow: content.services.eyebrow,
+      heading: content.services.heading,
+      items: services,
+    },
     about: content.about,
-    faq: { ...base.faq, eyebrow: content.faq.eyebrow, heading: content.faq.heading, items: faqItems },
+    faq: {
+      ...base.faq,
+      eyebrow: content.faq.eyebrow,
+      heading: content.faq.heading,
+      items: faqItems,
+    },
     contact: { ...base.contact, ...content.contact },
     leadHandling: {
       ...base.leadHandling,
       form: {
         name: { label: content.form.nameLabel, placeholder: content.form.namePlaceholder },
-        contactMethod: { label: content.form.contactLabel, placeholder: content.form.contactPlaceholder },
+        contactMethod: {
+          label: content.form.contactLabel,
+          placeholder: content.form.contactPlaceholder,
+        },
         service: { label: content.form.serviceLabel },
         notes: { label: content.form.notesLabel, placeholder: content.form.notesPlaceholder },
         submitLabel: content.form.submitLabel,
@@ -288,6 +331,8 @@ export async function createAiSiteConfig(lead: Lead): Promise<SiteConfig> {
       type: apiError?.type,
       requestId: apiError?.request_id,
     });
-    throw new Error("OpenAI generation failed. Check your API key, model setting, and network connection, then retry.");
+    throw new Error(
+      "OpenAI generation failed. Check your API key, model setting, and network connection, then retry.",
+    );
   }
 }

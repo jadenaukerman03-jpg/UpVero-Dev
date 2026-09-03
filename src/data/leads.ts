@@ -27,10 +27,11 @@ export interface Lead {
 
 export type LeadInput = Omit<Lead, "id" | "createdAt">;
 
-const optionalText = z.string().trim().optional();
+const optionalText = z.string().trim().max(2_000).optional();
+const optionalList = z.array(z.string().trim().min(1).max(240)).max(20).optional();
 
 export const leadSchema: z.ZodType<Lead> = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).max(120),
   businessName: optionalText,
   ownerName: optionalText,
   industry: optionalText,
@@ -41,16 +42,16 @@ export const leadSchema: z.ZodType<Lead> = z.object({
   state: optionalText,
   zipCode: optionalText,
   website: optionalText,
-  serviceAreas: z.array(z.string().trim().min(1)).optional(),
-  services: z.array(z.string().trim().min(1)).optional(),
-  businessDescription: optionalText,
+  serviceAreas: optionalList,
+  services: optionalList,
+  businessDescription: z.string().trim().max(8_000).optional(),
   yearsInBusiness: z.number().int().nonnegative().optional(),
   licenseNumber: optionalText,
   googleRating: z.number().min(0).max(5).optional(),
   reviewCount: z.number().int().nonnegative().optional(),
   notes: optionalText,
   source: optionalText,
-  createdAt: z.string().min(1),
+  createdAt: z.string().min(1).max(100),
 });
 
 export function createLead(input: LeadInput): Lead {

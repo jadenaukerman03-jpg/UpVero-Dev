@@ -8,9 +8,7 @@ export function Services() {
       <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
         <Reveal>
           <div className="mb-12 max-w-[40ch]">
-            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">
-              {services.eyebrow}
-            </p>
+            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">{services.eyebrow}</p>
             <h2 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance text-ink sm:text-4xl">
               {services.heading}
             </h2>
@@ -23,12 +21,8 @@ export function Services() {
                 <div className="font-display text-5xl leading-none font-medium text-clay/40">
                   {service.number}
                 </div>
-                <h3 className="mt-5 font-display text-xl font-medium text-ink">
-                  {service.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink/65">
-                  {service.body}
-                </p>
+                <h3 className="mt-5 font-display text-xl font-medium text-ink">{service.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink/65">{service.body}</p>
               </article>
             </Reveal>
           ))}

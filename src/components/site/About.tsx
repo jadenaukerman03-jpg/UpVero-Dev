@@ -6,7 +6,9 @@ export function About() {
   return (
     <section id="about" className="bg-sand/60">
       <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
-        <div className={`grid items-center gap-10 lg:gap-16 ${assets.about.src ? "md:grid-cols-2" : ""}`}>
+        <div
+          className={`grid items-center gap-10 lg:gap-16 ${assets.about.src ? "md:grid-cols-2" : ""}`}
+        >
           {assets.about.src ? (
             <Reveal>
               <img

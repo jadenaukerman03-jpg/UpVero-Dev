@@ -42,7 +42,9 @@ function tierForPrice(priceId: string) {
     growth: requiredSecret("STRIPE_PRICE_GROWTH"),
     professional: requiredSecret("STRIPE_PRICE_PROFESSIONAL"),
   } as const;
-  const tier = Object.entries(configuredPrices).find(([, configuredPriceId]) => configuredPriceId === priceId)?.[0];
+  const tier = Object.entries(configuredPrices).find(
+    ([, configuredPriceId]) => configuredPriceId === priceId,
+  )?.[0];
   if (!tier) throw new Error("Stripe subscription uses a Price that is not configured for UpVero.");
   return tier as "launch" | "growth" | "professional";
 }
@@ -99,7 +101,9 @@ async function upsertCheckoutSubscription(
   session: Stripe.Checkout.Session,
 ) {
   if (typeof session.subscription !== "string" || typeof session.customer !== "string") {
-    throw new Error("Completed subscription checkout is missing its Stripe customer or subscription.");
+    throw new Error(
+      "Completed subscription checkout is missing its Stripe customer or subscription.",
+    );
   }
 
   const ownership = requireCheckoutOwnership(session.metadata ?? {});
@@ -138,7 +142,8 @@ async function updateSubscriptionLifecycle(
     .select("id")
     .eq("provider_subscription_id", subscription.id)
     .maybeSingle();
-  if (lookupError) throw new Error(`Unable to load the Stripe subscription: ${lookupError.message}`);
+  if (lookupError)
+    throw new Error(`Unable to load the Stripe subscription: ${lookupError.message}`);
 
   if (!existing) {
     // Checkout is responsible for creating an ownership-bound subscription row.
@@ -146,7 +151,8 @@ async function updateSubscriptionLifecycle(
     return;
   }
 
-  const priceId = subscription.items.data.find((item) => typeof item.price.id === "string")?.price.id;
+  const priceId = subscription.items.data.find((item) => typeof item.price.id === "string")?.price
+    .id;
   if (!priceId) throw new Error("Stripe subscription has no Price to map to an UpVero tier.");
 
   const { error } = await admin
@@ -154,7 +160,8 @@ async function updateSubscriptionLifecycle(
     .update({
       status: subscriptionStatus(subscription.status),
       tier: tierForPrice(priceId),
-      provider_customer_id: typeof subscription.customer === "string" ? subscription.customer : null,
+      provider_customer_id:
+        typeof subscription.customer === "string" ? subscription.customer : null,
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
     })
     .eq("id", existing.id);
@@ -170,8 +177,12 @@ async function updateInvoiceStatus(
   const subscriptionId =
     typeof invoiceRecord.subscription === "string"
       ? invoiceRecord.subscription
-      : ((invoiceRecord.parent as Record<string, unknown> | null)?.subscription_details as Record<string, unknown> | null)
-          ?.subscription;
+      : (
+          (invoiceRecord.parent as Record<string, unknown> | null)?.subscription_details as Record<
+            string,
+            unknown
+          > | null
+        )?.subscription;
   if (typeof subscriptionId !== "string") return;
 
   const { error } = await admin
@@ -203,11 +214,9 @@ Deno.serve(async (request) => {
     return Response.json({ error: "Invalid Stripe signature" }, { status: 400 });
   }
 
-  const admin = createClient(
-    requiredSecret("SUPABASE_URL"),
-    supabaseAdminKey(),
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
+  const admin = createClient(requiredSecret("SUPABASE_URL"), supabaseAdminKey(), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const identifiers = eventIdentifiers(event);
 
   const { data: recordedEvent, error: eventLookupError } = await admin
@@ -215,7 +224,8 @@ Deno.serve(async (request) => {
     .select("id, processing_status, attempt_count")
     .eq("stripe_event_id", event.id)
     .maybeSingle();
-  if (eventLookupError) return Response.json({ error: "Unable to record webhook event" }, { status: 500 });
+  if (eventLookupError)
+    return Response.json({ error: "Unable to record webhook event" }, { status: 500 });
   if (recordedEvent?.processing_status === "processed") {
     return Response.json({ received: true, duplicate: true });
   }
@@ -244,7 +254,8 @@ Deno.serve(async (request) => {
       .select("id")
       .single();
     if (error?.code === "23505") return Response.json({ received: true, duplicate: true });
-    if (error || !data) return Response.json({ error: "Unable to record webhook event" }, { status: 500 });
+    if (error || !data)
+      return Response.json({ error: "Unable to record webhook event" }, { status: 500 });
     eventRecordId = data.id;
   }
 
@@ -252,7 +263,11 @@ Deno.serve(async (request) => {
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded":
-        await upsertCheckoutSubscription(admin, stripe, event.data.object as Stripe.Checkout.Session);
+        await upsertCheckoutSubscription(
+          admin,
+          stripe,
+          event.data.object as Stripe.Checkout.Session,
+        );
         break;
       case "customer.subscription.created":
       case "customer.subscription.updated":
@@ -271,7 +286,11 @@ Deno.serve(async (request) => {
 
     const { error } = await admin
       .from("stripe_webhook_events")
-      .update({ processing_status: "processed", processed_at: new Date().toISOString(), last_error: null })
+      .update({
+        processing_status: "processed",
+        processed_at: new Date().toISOString(),
+        last_error: null,
+      })
       .eq("id", eventRecordId!);
     if (error) throw new Error(`Unable to finalize webhook event: ${error.message}`);
     return Response.json({ received: true });
@@ -279,7 +298,11 @@ Deno.serve(async (request) => {
     console.error("Stripe webhook processing failed", { eventId: event.id, eventType: event.type });
     await admin
       .from("stripe_webhook_events")
-      .update({ processing_status: "failed", last_error: error instanceof Error ? error.message.slice(0, 500) : "Unknown processing error" })
+      .update({
+        processing_status: "failed",
+        last_error:
+          error instanceof Error ? error.message.slice(0, 500) : "Unknown processing error",
+      })
       .eq("id", eventRecordId!);
     return Response.json({ error: "Webhook processing failed" }, { status: 500 });
   }

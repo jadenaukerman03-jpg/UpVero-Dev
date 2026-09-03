@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafeHttpsUrl } from "@/lib/safe-url";
 
 import type { LeadInput } from "@/data/leads";
 
@@ -71,12 +72,18 @@ export interface ResearchJobResult {
   isMock: boolean;
 }
 
-const optionalText = z.string().trim().optional();
+const optionalText = z.string().trim().max(160).optional();
 
 export const researchQuerySchema: z.ZodType<ResearchQuery> = z.object({
-  businessName: z.string().trim().min(1, "Business name is required."),
+  businessName: z.string().trim().min(1, "Business name is required.").max(160),
   city: optionalText,
   state: optionalText,
-  websiteUrl: z.string().trim().url("Enter a valid website URL.").optional().or(z.literal("")),
+  websiteUrl: z
+    .string()
+    .trim()
+    .max(2_048)
+    .refine(isSafeHttpsUrl, "Enter an HTTPS website URL.")
+    .optional()
+    .or(z.literal("")),
   providerMode: z.enum(["real", "mock"]).optional(),
 });
