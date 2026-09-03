@@ -7,6 +7,81 @@ import { siteConfigSchema } from "@/data/site";
 const accessTokenSchema = z.string().min(1);
 const websiteStatusSchema = z.enum(["draft", "published", "archived"]);
 
+function authorizationFailure(status: number, message: string): never {
+  throw new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+}
+
+async function requireWithinCustomerQuota(ownerId: string, operation: "business_creation" | "checkout_creation") {
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+  const { data, error } = await createSupabaseAdminClient().rpc("consume_provider_operation_quota", {
+    p_owner_id: ownerId,
+    p_operation: operation,
+  });
+  if (error || data !== true) authorizationFailure(429, "Too many requests. Please try again later.");
+}
+
+async function requireAuthenticatedOwner(accessToken: string | undefined) {
+  const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
+  try {
+    return await requireAuthenticatedCustomer(accessToken ?? "");
+  } catch {
+    return authorizationFailure(401, "Sign in is required for this operation.");
+  }
+}
+
+/**
+ * Publishing is paid-only. The lookup intentionally accepts no tier, price,
+ * provider, or subscription ID from the browser: it derives every association
+ * from the owned website and the Stripe-webhook-maintained subscription row.
+ */
+async function requireActivePublishingEntitlement(
+  client: ReturnType<(typeof import("@/lib/supabase/server"))["createCustomerSupabaseClient"]>,
+  ownerId: string,
+  website: { id: string; business_id: string },
+) {
+  const { data: subscription, error } = await client
+    .from("subscriptions")
+    .select("id")
+    .eq("owner_id", ownerId)
+    .eq("business_id", website.business_id)
+    .eq("website_id", website.id)
+    .eq("provider", "stripe")
+    .eq("status", "active")
+    .maybeSingle();
+  if (error || !subscription) {
+    return authorizationFailure(
+      403,
+      "An active UpVero subscription is required to publish this website.",
+    );
+  }
+}
+
+export const createBusinessOperationScope = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z
+      .object({
+        accessToken: accessTokenSchema,
+        businessName: z.string().trim().min(1).max(160),
+        industry: z.string().trim().max(160).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
+    const { client, user } = await requireAuthenticatedCustomer(data.accessToken);
+    await requireWithinCustomerQuota(user.id, "business_creation");
+    const { data: business, error } = await client
+      .from("businesses")
+      .insert({ owner_id: user.id, name: data.businessName, industry: data.industry ?? null })
+      .select("id")
+      .single();
+    if (error || !business) serverError(error, "create the business record");
+    return business;
+  });
+
 function serverError(error: { message: string } | null, action: string): never {
   throw new Error(error?.message || `Unable to ${action}. Please try again.`);
 }
@@ -52,7 +127,6 @@ export const saveGeneratedWebsite = createServerFn({ method: "POST" })
         owner_id: user.id,
         business_id: businessId,
         name: data.businessName,
-        status: "draft",
         site_config: data.config,
       })
       .select("id, business_id, status, created_at")
@@ -108,21 +182,49 @@ export const listOwnedWebsites = createServerFn({ method: "POST" })
   });
 
 export const updateOwnedWebsiteStatus = createServerFn({ method: "POST" })
-  .validator((data: unknown) =>
-    z
-      .object({ accessToken: accessTokenSchema, websiteId: z.string().uuid(), status: websiteStatusSchema })
-      .parse(data),
-  )
+  .validator((data: unknown) => {
+    const parsed = z
+      .object({
+        accessToken: z.string().max(4096).optional(),
+        websiteId: z.string().uuid(),
+        status: websiteStatusSchema,
+      })
+      .safeParse(data);
+    if (parsed.success) return parsed.data;
+    throw new Response(JSON.stringify({ error: "Invalid website status request." }), {
+      status: 400,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  })
   .handler(async ({ data }) => {
-    const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
-    const { client } = await requireAuthenticatedCustomer(data.accessToken);
-    const { data: website, error } = await client
+    const { client, user } = await requireAuthenticatedOwner(data.accessToken);
+    const { data: ownedWebsite, error: ownershipError } = await client
+      .from("websites")
+      .select("id, business_id")
+      .eq("id", data.websiteId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    if (ownershipError || !ownedWebsite) {
+      return authorizationFailure(404, "This website is unavailable.");
+    }
+
+    if (data.status === "published") {
+      await requireActivePublishingEntitlement(client, user.id, ownedWebsite);
+    }
+
+    // Publication state is intentionally written through the service client
+    // only after the customer-scoped client has verified identity, ownership,
+    // and the Stripe-webhook-maintained entitlement above.
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+    const { data: website, error } = await createSupabaseAdminClient()
       .from("websites")
       .update({ status: data.status })
       .eq("id", data.websiteId)
+      .eq("owner_id", user.id)
       .select("id, status")
       .maybeSingle();
     if (error) serverError(error, "update the website status");
-    if (!website) throw new Error("This website is unavailable or does not belong to your account.");
+    if (!website)
+      throw new Error("This website is unavailable or does not belong to your account.");
     return website;
   });

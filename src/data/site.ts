@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { safeHttpsUrlSchema, safeLinkHrefSchema } from "@/lib/safe-url";
 
 export type Cta = { label: string; href: string };
 
@@ -81,7 +82,7 @@ export type SiteConfig = {
   footer: { copyrightSuffix: string };
 };
 
-const ctaSchema = z.object({ label: z.string().min(1), href: z.string().min(1) });
+const ctaSchema = z.object({ label: z.string().min(1), href: safeLinkHrefSchema });
 
 /** Runtime validation for generated or eventually AI-provided site configurations. */
 export const siteConfigSchema = z.object({
@@ -100,17 +101,17 @@ export const siteConfigSchema = z.object({
     description: z.string().min(1),
     socialTitle: z.string().min(1),
     socialDescription: z.string().min(1),
-    canonicalUrl: z.string().min(1),
-    socialImage: z.string().min(1).optional(),
+    canonicalUrl: safeHttpsUrlSchema,
+    socialImage: safeHttpsUrlSchema.optional(),
   }),
   assets: z.object({
-    hero: z.object({ src: z.string().min(1).optional(), alt: z.string().min(1) }),
-    about: z.object({ src: z.string().min(1).optional(), alt: z.string().min(1) }),
+    hero: z.object({ src: safeHttpsUrlSchema.optional(), alt: z.string().min(1) }),
+    about: z.object({ src: safeHttpsUrlSchema.optional(), alt: z.string().min(1) }),
   }),
   assetAttributions: z
-    .array(z.object({ label: z.string().min(1), href: z.string().url() }))
+    .array(z.object({ label: z.string().min(1), href: safeHttpsUrlSchema }))
     .optional(),
-  navigation: z.array(z.object({ label: z.string().min(1), href: z.string().min(1) })),
+  navigation: z.array(z.object({ label: z.string().min(1), href: safeLinkHrefSchema })),
   header: z.object({ primaryCta: ctaSchema }),
   hero: z.object({
     eyebrow: z.string(),
