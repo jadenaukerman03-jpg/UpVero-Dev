@@ -172,67 +172,30 @@
 }
 
 .reveal {
-  opacity: 0;
+  /* Content must never remain invisible if an intersection observer is delayed or unavailable. */
+  opacity: 1;
 }
 
 .reveal.is-visible {
   animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-/* Demo-only direction tokens. Default production previews retain their existing classes and tokens. */
-.demo-direction-modern .font-display {
-  letter-spacing: -0.035em;
+.editor-settings-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--ink) 35%, transparent) transparent;
 }
-.demo-direction-modern main > section > div {
-  padding-top: clamp(5.5rem, 9vw, 8rem);
-  padding-bottom: clamp(5.5rem, 9vw, 8rem);
+
+.editor-settings-scroll::-webkit-scrollbar {
+  width: 0.5rem;
 }
-.demo-direction-modern .rounded-2xl {
-  border-radius: var(--demo-radius);
-  box-shadow: var(--demo-shadow);
+
+.editor-settings-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
-.demo-direction-luxury .font-display {
-  letter-spacing: -0.025em;
-  font-weight: 500;
-}
-.demo-direction-luxury main > section > div {
-  padding-top: clamp(6rem, 10vw, 9rem);
-  padding-bottom: clamp(6rem, 10vw, 9rem);
-}
-.demo-direction-luxury .rounded-2xl {
-  border-radius: var(--demo-radius);
-  box-shadow: var(--demo-shadow);
-}
-.demo-direction-luxury main > section:nth-child(even) {
-  background-color: color-mix(in oklch, var(--sand) 60%, var(--bone));
-}
-.demo-direction-friendly .rounded-2xl {
-  border-radius: var(--demo-radius);
-  box-shadow: var(--demo-shadow);
-}
-.demo-direction-friendly main > section > div {
-  padding-top: clamp(5.25rem, 8vw, 7.5rem);
-  padding-bottom: clamp(5.25rem, 8vw, 7.5rem);
-}
-.demo-direction-friendly a.rounded-full,
-.demo-direction-friendly button.rounded-full {
-  border-radius: 1rem;
-}
-.demo-direction-minimal .rounded-2xl {
-  border-radius: var(--demo-radius);
-  box-shadow: var(--demo-shadow);
-}
-.demo-direction-minimal main > section > div {
-  padding-top: clamp(4rem, 6vw, 6rem);
-  padding-bottom: clamp(4rem, 6vw, 6rem);
-}
-.demo-direction-minimal .font-display {
-  letter-spacing: -0.045em;
-}
-.demo-direction-minimal main > section:nth-child(even) {
-  background-color: var(--bone);
-}
-.demo-direction-professional .rounded-2xl {
-  border-radius: var(--demo-radius);
-  box-shadow: var(--demo-shadow);
+
+.editor-settings-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--ink) 35%, transparent);
+  background-clip: padding-box;
 }

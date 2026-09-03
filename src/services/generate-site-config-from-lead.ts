@@ -1,5 +1,3 @@
-import aboutImage from "@/assets/about-crew.jpg";
-import heroImage from "@/assets/hero-roof.jpg";
 import type { Lead } from "@/data/leads";
 import { validateSiteConfig, type SiteConfig } from "@/data/site";
 
@@ -107,7 +105,6 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
       socialTitle: `${name} — ${industry} in ${serviceArea}`,
       socialDescription: `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`,
       canonicalUrl: `https://${slug}.example/`,
-      socialImage: heroImage,
     },
     assets: {
       hero: { alt: `${name} ${industry} project` },

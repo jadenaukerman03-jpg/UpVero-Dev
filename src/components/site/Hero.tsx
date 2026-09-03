@@ -50,9 +50,9 @@ export function Hero() {
         </Reveal>
       </div>
 
-      <div className="mx-auto max-w-6xl px-6 pb-4 sm:px-10">
-        <Reveal delay={380}>
-          {assets.hero.src ? (
+      {assets.hero.src ? (
+        <div className="mx-auto max-w-6xl px-6 pb-4 sm:px-10">
+          <Reveal delay={380}>
             <img
               src={assets.hero.src}
               alt={assets.hero.alt}
@@ -60,19 +60,9 @@ export function Hero() {
               height={1080}
               className="aspect-video w-full rounded-2xl object-cover outline-1 -outline-offset-1 outline-ink/10"
             />
-          ) : (
-            <div
-              aria-label={assets.hero.alt}
-              role="img"
-              className="relative aspect-video w-full overflow-hidden rounded-2xl bg-linear-to-br from-ink via-ink/90 to-clay outline-1 -outline-offset-1 outline-ink/10"
-            >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_26%,color-mix(in_oklch,var(--clay)_62%,transparent),transparent_34%),linear-gradient(125deg,transparent_24%,color-mix(in_oklch,var(--bone)_12%,transparent)_24.5%,transparent_25%)]" />
-              <div className="absolute right-[12%] bottom-[14%] left-[12%] h-px bg-bone/35" />
-              <div className="absolute right-[12%] bottom-[14%] h-16 w-px bg-bone/35" />
-            </div>
-          )}
-        </Reveal>
-      </div>
+          </Reveal>
+        </div>
+      ) : null}
     </section>
   );
 }

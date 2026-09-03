@@ -7,10 +7,12 @@ import { createLead, type LeadInput } from "@/data/leads";
 import type { ResearchJobResult } from "@/data/research";
 import { validateSiteConfig, type SiteConfig } from "@/data/site";
 import { visualStyleOptions, type ImageSelectionResult, type VisualStyle } from "@/data/visuals";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { saveGeneratedWebsite } from "@/services/customer-data";
 import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
-import { generateSiteConfigWithAI } from "@/services/generate-site-config-with-ai.server";
-import { sourceImagesForSiteServer } from "@/services/source-images-for-site.server";
-import { researchBusinessServer } from "@/services/research-business.server";
+import { generateSiteConfigWithAI } from "@/services/generate-site-config-with-ai";
+import { sourceImagesForSiteServer } from "@/services/source-images-for-site";
+import { researchBusinessServer } from "@/services/research-business";
 
 export const Route = createFileRoute("/factory")({ component: FactoryRoute });
 
@@ -61,7 +63,7 @@ function FactoryRoute() {
     return (
       <div className="grid min-h-screen place-items-center bg-sand/40 px-6 text-center text-ink">
         <p className="text-sm text-ink/70">
-          The Website Factory tool is available in development only.
+          The UpVero tool is available in development only.
         </p>
       </div>
     );
@@ -85,6 +87,8 @@ function FactoryDevelopmentTool() {
   const generateWithAi = useServerFn(generateSiteConfigWithAI);
   const sourceImages = useServerFn(sourceImagesForSiteServer);
   const runResearch = useServerFn(researchBusinessServer);
+  const persistWebsite = useServerFn(saveGeneratedWebsite);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   function loadExampleLead() {
     const values: Record<string, string> = {
@@ -225,7 +229,7 @@ function FactoryDevelopmentTool() {
       const lead = createLead(readLeadInput(form));
       const config = await generateWithAi({ data: lead });
       setPreviewConfig(config);
-      setMessage("Website content is ready. Checking approved image sources…");
+      setMessage("Website content is ready. Searching Pexels…");
       const result = await sourceImages({ data: { lead, style: visualStyle } });
       setGeneratedImages(result);
       const assets = Object.fromEntries(
@@ -234,6 +238,9 @@ function FactoryDevelopmentTool() {
       setPreviewConfig(
         validateSiteConfig({
           ...config,
+          seo: assets["hero"]?.src
+            ? { ...config.seo, socialImage: assets["hero"].src }
+            : config.seo,
           assets: {
             hero: assets["hero"]?.src
               ? { src: assets["hero"].src, alt: assets["hero"].alt }
@@ -243,7 +250,7 @@ function FactoryDevelopmentTool() {
               : { alt: config.assets.about.alt },
           },
           assetAttributions: result.assets
-            .filter((asset) => asset.sourceType === "licensed_provider" && asset.originalSourceUrl)
+            .filter((asset) => asset.sourceType === "pexels" && asset.originalSourceUrl)
             .map((asset) => ({
               label:
                 asset.attribution ||
@@ -255,8 +262,8 @@ function FactoryDevelopmentTool() {
       const succeeded = result.assets.filter((asset) => asset.src).length;
       setMessage(
         succeeded === result.assets.length
-          ? `Generated AI content and selected ${succeeded} licensed or authorized images.`
-          : `Generated AI content. ${succeeded} licensed or authorized images are ready; remaining sections use the image-free design treatment.`,
+          ? `Generated AI content and selected ${succeeded} Pexels images.`
+          : `Generated AI content. ${succeeded} Pexels images are ready; remaining sections use the image-free design treatment.`,
       );
     } catch (error) {
       setMessage(
@@ -264,6 +271,32 @@ function FactoryDevelopmentTool() {
       );
     } finally {
       setIsGeneratingImages(false);
+    }
+  }
+
+  async function savePreviewDraft() {
+    if (!previewConfig) return;
+    const { data, error } = await createBrowserSupabaseClient().auth.getSession();
+    if (error || !data.session) {
+      setMessage("Sign in at /account before saving this website draft.");
+      return;
+    }
+
+    try {
+      setIsSavingDraft(true);
+      const saved = await persistWebsite({
+        data: {
+          accessToken: data.session.access_token,
+          businessName: previewConfig.brand.name,
+          industry: formValues["industry"] || undefined,
+          config: previewConfig,
+        },
+      });
+      setMessage(`Saved draft ${saved.id}. It is visible only to your signed-in account.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to save the website draft.");
+    } finally {
+      setIsSavingDraft(false);
     }
   }
 
@@ -544,8 +577,8 @@ function FactoryDevelopmentTool() {
                 className="rounded-full border border-ink/20 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isGeneratingImages
-                  ? "Sourcing licensed images…"
-                  : "Generate AI Website + Licensed Images"}
+                  ? "Searching Pexels…"
+                  : "Generate AI Website + Pexels Images"}
               </button>
               <p className="text-sm text-ink/60" role="status">
                 {message}
@@ -556,7 +589,7 @@ function FactoryDevelopmentTool() {
             <p className="mt-4 text-sm text-ink/60">
               Image sourcing:{" "}
               {generatedImages.assets
-                .map((asset) => `${asset.section}: ${asset.sourceType}`)
+                .map((asset) => `${asset.section}: Pexels`)
                 .join(" · ")}
             </p>
           )}
@@ -571,6 +604,14 @@ function FactoryDevelopmentTool() {
               Draft only — demo testimonials must be replaced with verified customer reviews before
               publishing.
             </p>
+            <button
+              type="button"
+              onClick={savePreviewDraft}
+              disabled={isSavingDraft}
+              className="mt-4 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bone disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSavingDraft ? "Saving draft…" : "Save private website draft"}
+            </button>
           </div>
           <SitePreview config={previewConfig} />
         </section>

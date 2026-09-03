@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as FactoryRouteImport } from './routes/factory'
 import { Route as LaunchRouteImport } from './routes/launch'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FactoryRoute = FactoryRouteImport.update({
@@ -31,30 +37,34 @@ const LaunchRoute = LaunchRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/factory': typeof FactoryRoute
   '/launch': typeof LaunchRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/factory': typeof FactoryRoute
   '/launch': typeof LaunchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/factory': typeof FactoryRoute
   '/launch': typeof LaunchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/factory' | '/launch'
+  fullPaths: '/' | '/account' | '/factory' | '/launch'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/factory' | '/launch'
-  id: '__root__' | '/' | '/factory' | '/launch'
+  to: '/' | '/account' | '/factory' | '/launch'
+  id: '__root__' | '/' | '/account' | '/factory' | '/launch'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
   FactoryRoute: typeof FactoryRoute
   LaunchRoute: typeof LaunchRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/factory': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
   FactoryRoute: FactoryRoute,
   LaunchRoute: LaunchRoute,
 }

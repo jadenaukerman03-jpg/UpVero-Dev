@@ -19,7 +19,9 @@ export const Route = createFileRoute("/")({
         content: activeSiteConfig.seo.socialDescription,
       },
       { property: "og:type", content: "website" },
-      { property: "og:image", content: activeSiteConfig.seo.socialImage },
+      ...(activeSiteConfig.seo.socialImage
+        ? [{ property: "og:image", content: activeSiteConfig.seo.socialImage }]
+        : []),
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),

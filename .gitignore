@@ -19,6 +19,10 @@ dist-ssr
 .env.*
 !.env.example
 
+# Local Codex reference material and Supabase CLI state
+.agents/
+supabase/.temp/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

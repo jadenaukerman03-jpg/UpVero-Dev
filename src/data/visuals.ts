@@ -12,7 +12,7 @@ export const visualStyleOptions = [
 export type VisualStyle = (typeof visualStyleOptions)[number];
 export type ImageSection = "hero" | "about";
 export type ImageSelectionStatus = "completed" | "failed" | "unavailable";
-export type ImageSourceType = "business" | "licensed_provider";
+export type ImageSourceType = "pexels";
 
 export interface VisualProfile {
   businessName: string;
@@ -49,6 +49,8 @@ export interface ImageRequirement {
   dimensions: "1536x1024" | "1024x1536";
   orientation: "landscape" | "portrait";
   searchQuery: string;
+  /** Ordered Pexels-only alternatives when a business-name query is too specific. */
+  searchQueries?: string[];
   alt: string;
 }
 
@@ -63,6 +65,4 @@ export interface ImageSourcingRequest {
   lead: Lead;
   style: VisualStyle;
   sections?: ImageSection[] | undefined;
-  /** Reserved for a future upload/authorization workflow; public web images are never added here. */
-  authorizedBusinessImages?: ImageAsset[] | undefined;
 }

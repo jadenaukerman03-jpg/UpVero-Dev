@@ -1,5 +1,3 @@
-import aboutImage from "@/assets/about-crew.jpg";
-import heroImage from "@/assets/hero-roof.jpg";
 import { z } from "zod";
 
 export type Cta = { label: string; href: string };
@@ -25,7 +23,7 @@ export type SiteConfig = {
     socialTitle: string;
     socialDescription: string;
     canonicalUrl: string;
-    socialImage: string;
+    socialImage?: string;
   };
   assets: {
     hero: { src?: string; alt: string };
@@ -103,7 +101,7 @@ export const siteConfigSchema = z.object({
     socialTitle: z.string().min(1),
     socialDescription: z.string().min(1),
     canonicalUrl: z.string().min(1),
-    socialImage: z.string().min(1),
+    socialImage: z.string().min(1).optional(),
   }),
   assets: z.object({
     hero: z.object({ src: z.string().min(1).optional(), alt: z.string().min(1) }),
@@ -200,15 +198,12 @@ export const defaultSiteConfig = {
     socialDescription:
       "Roof repair, replacement, inspection and gutters from a licensed local crew. Written estimates and a 25-year workmanship warranty.",
     canonicalUrl: "https://vantageroofing.example/",
-    socialImage: heroImage,
   },
   assets: {
     hero: {
-      src: heroImage,
       alt: "Golden hour view of a freshly installed standing-seam metal roof",
     },
     about: {
-      src: aboutImage,
       alt: "Roofer in a hi-vis vest installing shingles in warm daylight",
     },
   },
@@ -378,15 +373,12 @@ export const summitPeakRoofingConfig = {
     socialDescription:
       "Roof repair, replacement, inspections, and gutter systems for homeowners across the High Valley. Clear recommendations and dependable local crews.",
     canonicalUrl: "https://summitpeakroofing.example/",
-    socialImage: heroImage,
   },
   assets: {
     hero: {
-      src: heroImage,
       alt: "Sunset over a durable metal roof installed by Summit Peak Roofing",
     },
     about: {
-      src: aboutImage,
       alt: "Summit Peak Roofing crew member installing shingles on a residential home",
     },
   },

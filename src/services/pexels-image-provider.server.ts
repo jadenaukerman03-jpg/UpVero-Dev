@@ -33,6 +33,14 @@ function preferredPhotoUrl(photo: PexelsPhoto, requirement: ImageRequirement): s
     : photo.src.large2x || photo.src.large || photo.src.portrait;
 }
 
+function isPexelsImageUrl(value: string): boolean {
+  try {
+    return new URL(value).hostname === "images.pexels.com";
+  } catch {
+    return false;
+  }
+}
+
 /** Approved, server-only Pexels provider. It remains inactive until PEXELS_API_KEY is configured. */
 export async function findPexelsImage(
   requirement: ImageRequirement,
@@ -41,47 +49,53 @@ export async function findPexelsImage(
   const apiKey = process.env["PEXELS_API_KEY"];
   if (!apiKey) return undefined;
 
-  const search = new URL("https://api.pexels.com/v1/search");
-  search.searchParams.set("query", requirement.searchQuery);
-  search.searchParams.set("orientation", requirement.orientation);
-  search.searchParams.set("size", "large");
-  search.searchParams.set("per_page", "12");
+  const queries = [requirement.searchQuery, ...(requirement.searchQueries ?? [])];
 
-  try {
-    const response = await fetch(search, { headers: { Authorization: apiKey } });
-    if (!response.ok) {
-      console.error(`Pexels search failed for ${requirement.section}: ${response.status}`);
+  for (const query of queries) {
+    const search = new URL("https://api.pexels.com/v1/search");
+    search.searchParams.set("query", query);
+    search.searchParams.set("orientation", requirement.orientation);
+    search.searchParams.set("size", "large");
+    search.searchParams.set("per_page", "12");
+
+    try {
+      const response = await fetch(search, { headers: { Authorization: apiKey } });
+      if (!response.ok) {
+        console.error(`Pexels search failed for ${requirement.section}: ${response.status}`);
+        return undefined;
+      }
+      const body = (await response.json()) as PexelsSearchResponse;
+      const selected = (body.photos ?? [])
+        .filter((photo) => !usedSourceUrls.has(photo.url))
+        .map((photo) => ({ photo, score: scorePhoto(photo, requirement) }))
+        .filter(({ score }) => score >= 70)
+        .sort((left, right) => right.score - left.score)[0]?.photo;
+      const src = selected ? preferredPhotoUrl(selected, requirement) : undefined;
+      if (!selected || !src || !isPexelsImageUrl(src)) continue;
+
+      return {
+        id: `pexels-${selected.id}`,
+        section: requirement.section,
+        status: "completed",
+        alt: selected.alt?.trim() || requirement.alt,
+        prompt: query,
+        queryOrPromptSummary: query,
+        dimensions: requirement.dimensions,
+        generatedAt: new Date().toISOString(),
+        src,
+        cacheKey: `pexels-${selected.id}-${requirement.section}`,
+      sourceType: "pexels",
+        providerName: "Pexels",
+        originalSourceUrl: selected.url,
+        attribution: `Photo by ${selected.photographer} on Pexels (${selected.photographer_url})`,
+        licenseMetadata: "Pexels API result; retain provider attribution and linking requirements.",
+        usagePermission: "provider-license",
+      };
+    } catch (error) {
+      console.error(`Pexels search failed for ${requirement.section}`, error);
       return undefined;
     }
-    const body = (await response.json()) as PexelsSearchResponse;
-    const selected = (body.photos ?? [])
-      .filter((photo) => !usedSourceUrls.has(photo.url))
-      .map((photo) => ({ photo, score: scorePhoto(photo, requirement) }))
-      .filter(({ score }) => score >= 70)
-      .sort((left, right) => right.score - left.score)[0]?.photo;
-    const src = selected ? preferredPhotoUrl(selected, requirement) : undefined;
-    if (!selected || !src) return undefined;
-
-    return {
-      id: `pexels-${selected.id}`,
-      section: requirement.section,
-      status: "completed",
-      alt: selected.alt?.trim() || requirement.alt,
-      prompt: requirement.searchQuery,
-      queryOrPromptSummary: requirement.searchQuery,
-      dimensions: requirement.dimensions,
-      generatedAt: new Date().toISOString(),
-      src,
-      cacheKey: `pexels-${selected.id}-${requirement.section}`,
-      sourceType: "licensed_provider",
-      providerName: "Pexels",
-      originalSourceUrl: selected.url,
-      attribution: `Photo by ${selected.photographer} on Pexels (${selected.photographer_url})`,
-      licenseMetadata: "Pexels API result; retain provider attribution and linking requirements.",
-      usagePermission: "provider-license",
-    };
-  } catch (error) {
-    console.error(`Pexels search failed for ${requirement.section}`, error);
-    return undefined;
   }
+
+  return undefined;
 }

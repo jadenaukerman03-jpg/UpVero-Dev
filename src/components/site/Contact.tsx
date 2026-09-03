@@ -17,7 +17,7 @@ export function Contact() {
 
   return (
     <section id="contact" className="bg-ink">
-      <div className="mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-28">
+      <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
         <div className="grid gap-10 md:grid-cols-2 lg:gap-16">
           <Reveal>
             <p className="mb-3 text-sm font-semibold tracking-wide text-clay">

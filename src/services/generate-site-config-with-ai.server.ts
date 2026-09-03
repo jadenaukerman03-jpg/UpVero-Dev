@@ -1,7 +1,6 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { leadSchema, type Lead } from "@/data/leads";
+import type { Lead } from "@/data/leads";
 import { validateSiteConfig, type SiteConfig } from "@/data/site";
 import { generateSiteConfigFromLead } from "./generate-site-config-from-lead";
 
@@ -231,7 +230,7 @@ function mergeAiContent(lead: Lead, content: AiContent): SiteConfig {
   });
 }
 
-async function createAiSiteConfig(lead: Lead): Promise<SiteConfig> {
+export async function createAiSiteConfig(lead: Lead): Promise<SiteConfig> {
   const apiKey = process.env["OPENAI_API_KEY"];
   if (!apiKey) {
     throw new Error(
@@ -273,11 +272,22 @@ async function createAiSiteConfig(lead: Lead): Promise<SiteConfig> {
     if (error instanceof Error && error.message.includes("OpenAI returned")) {
       throw error;
     }
+    const apiError = error as {
+      name?: unknown;
+      message?: unknown;
+      status?: unknown;
+      code?: unknown;
+      type?: unknown;
+      request_id?: unknown;
+    };
+    console.error("OpenAI website generation request failed", {
+      name: apiError?.name,
+      message: apiError?.message,
+      status: apiError?.status,
+      code: apiError?.code,
+      type: apiError?.type,
+      requestId: apiError?.request_id,
+    });
     throw new Error("OpenAI generation failed. Check your API key, model setting, and network connection, then retry.");
   }
 }
-
-/** Server-only RPC entry point. The API key is never sent to the browser. */
-export const generateSiteConfigWithAI = createServerFn({ method: "POST" })
-  .validator((data: unknown) => leadSchema.parse(data))
-  .handler(async ({ data }) => createAiSiteConfig(data));

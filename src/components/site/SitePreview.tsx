@@ -7,6 +7,11 @@ import {
   visualDirections,
   type DemoVisualDirection,
 } from "@/data/demo-themes";
+import {
+  fontOptions,
+  isOptionUnlocked,
+  type SubscriptionTier,
+} from "@/data/customization-tiers";
 import type { SiteConfig } from "@/data/site";
 import { SiteConfigProvider } from "@/data/site-config-context";
 
@@ -19,6 +24,7 @@ import { Hero } from "./Hero";
 import { Services } from "./Services";
 import { Testimonials } from "./Testimonials";
 import { DemoLaunchControls } from "./DemoLaunchControls";
+import { VisualDirectionSite } from "./VisualDirectionSite";
 
 export function SitePreview({
   config,
@@ -31,10 +37,14 @@ export function SitePreview({
   const recommendedDirection = useMemo(() => getRecommendedVisualDirection(config), [config]);
   const storageKey = `website-factory-demo-theme:${config.brand.name.toLowerCase()}`;
   const directionStorageKey = `website-factory-demo-direction:${config.brand.name.toLowerCase()}`;
+  const fontStorageKey = `website-factory-demo-font:${config.brand.name.toLowerCase()}`;
   const [themeId, setThemeId] = useState("original");
   const [directionId, setDirectionId] = useState<DemoVisualDirection>(recommendedDirection);
+  const [fontId, setFontId] = useState("original");
+  const [tier, setTier] = useState<SubscriptionTier>("launch");
   const selectedTheme = themes.find((theme) => theme.id === themeId) ?? themes[0]!;
   const selectedDirection = visualDirectionDefinitions[directionId];
+  const selectedFont = fontOptions.find((font) => font.id === fontId) ?? fontOptions[0]!;
 
   useEffect(() => {
     if (!showDemoLaunchControls) return;
@@ -45,7 +55,9 @@ export function SitePreview({
     ) as DemoVisualDirection | null;
     if (savedDirectionId && visualDirections.includes(savedDirectionId))
       setDirectionId(savedDirectionId);
-  }, [showDemoLaunchControls, storageKey, directionStorageKey, themes]);
+    const savedFontId = window.localStorage.getItem(fontStorageKey);
+    if (savedFontId && fontOptions.some((font) => font.id === savedFontId)) setFontId(savedFontId);
+  }, [showDemoLaunchControls, storageKey, directionStorageKey, fontStorageKey, themes]);
 
   function selectTheme(nextThemeId: string) {
     setThemeId(nextThemeId);
@@ -57,8 +69,25 @@ export function SitePreview({
     window.localStorage.setItem(directionStorageKey, nextDirection);
   }
 
+  function selectFont(nextFontId: string) {
+    setFontId(nextFontId);
+    window.localStorage.setItem(fontStorageKey, nextFontId);
+  }
+
+  function selectTier(nextTier: SubscriptionTier) {
+    setTier(nextTier);
+    if (!isOptionUnlocked(nextTier, "font", fontId)) selectFont("original");
+    if (!isOptionUnlocked(nextTier, "visual-direction", directionId))
+      selectDirection(recommendedDirection);
+    if (!isOptionUnlocked(nextTier, "color-theme", themeId)) selectTheme("original");
+  }
+
   const themeStyle = showDemoLaunchControls
-    ? ({ ...selectedTheme.variables, ...selectedDirection.variables } as CSSProperties)
+    ? ({
+        ...selectedTheme.variables,
+        ...selectedDirection.variables,
+        ...selectedFont.variables,
+      } as CSSProperties)
     : undefined;
   return (
     <SiteConfigProvider config={config}>
@@ -66,16 +95,22 @@ export function SitePreview({
         className={`${showDemoLaunchControls ? `demo-direction-${selectedDirection.id} ` : ""}min-h-screen bg-bone font-sans text-ink antialiased`}
         style={themeStyle}
       >
-        <Header />
-        <main>
-          <Hero />
-          <Services />
-          <About />
-          <Testimonials />
-          <Faq />
-          <Contact />
-        </main>
-        <Footer />
+        {showDemoLaunchControls ? (
+          <VisualDirectionSite direction={directionId} />
+        ) : (
+          <>
+            <Header />
+            <main>
+              <Hero />
+              <Services />
+              <About />
+              <Testimonials />
+              <Faq />
+              <Contact />
+            </main>
+            <Footer />
+          </>
+        )}
         {showDemoLaunchControls && (
           <DemoLaunchControls
             businessName={config.brand.name}
@@ -86,6 +121,11 @@ export function SitePreview({
             selectedDirection={directionId}
             recommendedDirection={recommendedDirection}
             onSelectDirection={selectDirection}
+            fonts={fontOptions}
+            selectedFont={selectedFont}
+            onSelectFont={selectFont}
+            tier={tier}
+            onTierChange={selectTier}
           />
         )}
       </div>
