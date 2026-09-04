@@ -10,7 +10,6 @@ import {
 import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { activeSiteConfig } from "../data/active-site";
 
 function NotFoundComponent() {
   return (
@@ -74,14 +73,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: activeSiteConfig.seo.title },
-      { name: "description", content: activeSiteConfig.seo.description },
-      { property: "og:title", content: activeSiteConfig.seo.socialTitle },
-      { property: "og:description", content: activeSiteConfig.seo.socialDescription },
+      { title: "Upvero — Websites built, hosted, and maintained for local businesses" },
+      {
+        name: "description",
+        content:
+          "Upvero builds, hosts, secures, and maintains professional websites for local businesses.",
+      },
+      { property: "og:title", content: "Upvero" },
+      {
+        property: "og:description",
+        content: "Professional websites for local businesses, with a free preview before you pay.",
+      },
       { property: "og:type", content: "website" },
-      ...(activeSiteConfig.seo.socialImage
-        ? [{ property: "og:image", content: activeSiteConfig.seo.socialImage }]
-        : []),
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
@@ -95,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "canonical", href: activeSiteConfig.seo.canonicalUrl },
+      { rel: "canonical", href: "https://upvero.org" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
