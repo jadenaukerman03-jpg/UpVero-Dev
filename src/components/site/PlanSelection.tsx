@@ -1,5 +1,5 @@
 import { Check, Lock, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 
 import {
@@ -9,7 +9,33 @@ import {
   type SubscriptionPlan,
 } from "@/data/subscription-plans";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { savePurchaseDraft } from "@/services/customer-data";
+import {
+  createOwnedStripeCheckoutSession,
+  listOwnedWebsites,
+  savePurchaseDraft,
+} from "@/services/customer-data";
+
+type OwnedWebsite = {
+  id: string;
+  name: string;
+  status: "draft" | "published" | "archived";
+  business_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+async function unwrapServerResult<T>(operation: Promise<T>): Promise<T> {
+  const result = (await operation) as T | Response;
+  if (!(result instanceof Response)) return result;
+  let message = "This operation was not authorized.";
+  try {
+    const body = (await result.json()) as { error?: string };
+    if (body.error) message = body.error;
+  } catch {
+    // Keep the safe generic message if an intermediary removes the error body.
+  }
+  throw new Error(message);
+}
 
 function PlanCard({
   plan,
@@ -56,30 +82,82 @@ function PlanCard({
 
 export function PlanSelection() {
   const [selectedPlanId, setSelectedPlanId] = useState("growth");
+  const [ownedWebsites, setOwnedWebsites] = useState<OwnedWebsite[]>([]);
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState("");
   const [notice, setNotice] = useState("");
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const persistPurchaseDraft = useServerFn(savePurchaseDraft);
+  const loadOwnedWebsites = useServerFn(listOwnedWebsites);
+  const startStripeCheckout = useServerFn(createOwnedStripeCheckoutSession);
   const selectedPlan =
     subscriptionPlans.find((plan) => plan.id === selectedPlanId) ?? subscriptionPlans[1]!;
+
+  useEffect(() => {
+    let current = true;
+    async function loadWebsites() {
+      const { data, error } = await createBrowserSupabaseClient().auth.getSession();
+      if (error || !data.session) {
+        if (current)
+          setNotice("Sign in at /account to choose a saved website and continue to checkout.");
+        return;
+      }
+      try {
+        const websites = await unwrapServerResult(
+          loadOwnedWebsites({ data: { accessToken: data.session.access_token } }),
+        );
+        if (!current) return;
+        setOwnedWebsites(websites as OwnedWebsite[]);
+        setSelectedWebsiteId((selected) => selected || websites[0]?.id || "");
+        if (websites.length === 0) {
+          setNotice("Save a private website draft before starting checkout.");
+        }
+      } catch {
+        if (current) setNotice("Unable to load your saved websites. Please refresh and try again.");
+      }
+    }
+    void loadWebsites();
+    return () => {
+      current = false;
+    };
+  }, [loadOwnedWebsites]);
 
   async function continueToCheckout() {
     const { data, error } = await createBrowserSupabaseClient().auth.getSession();
     if (error || !data.session) {
-      setNotice("Sign in at /account to save your plan choice before checkout.");
+      setNotice("Sign in at /account before continuing to secure checkout.");
+      return;
+    }
+    if (!selectedWebsiteId) {
+      setNotice("Choose one of your saved website drafts before continuing to checkout.");
       return;
     }
     try {
-      setIsSavingDraft(true);
+      setIsStartingCheckout(true);
       await persistPurchaseDraft({
-        data: { accessToken: data.session.access_token, tier: selectedPlan.id },
+        data: {
+          accessToken: data.session.access_token,
+          websiteId: selectedWebsiteId,
+          tier: selectedPlan.id,
+        },
       });
-      setNotice(
-        "Your plan choice is saved securely. Stripe checkout is the next implementation phase.",
+      const checkout = await unwrapServerResult(
+        startStripeCheckout({
+          data: {
+            accessToken: data.session.access_token,
+            websiteId: selectedWebsiteId,
+            tier: selectedPlan.id,
+          },
+        }),
       );
+      window.location.assign(checkout.url);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to save your plan choice.");
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to start secure checkout. Please try again.",
+      );
     } finally {
-      setIsSavingDraft(false);
+      setIsStartingCheckout(false);
     }
   }
 
@@ -116,14 +194,31 @@ export function PlanSelection() {
               {formatPlanPrice(selectedPlan)} · Cancel or change plans through the future billing
               portal.
             </p>
+            {ownedWebsites.length > 0 && (
+              <label className="mt-3 block text-sm font-medium text-bone">
+                Website to launch
+                <select
+                  value={selectedWebsiteId}
+                  onChange={(event) => setSelectedWebsiteId(event.target.value)}
+                  disabled={isStartingCheckout}
+                  className="mt-1 block min-h-10 w-full rounded-lg border border-bone/25 bg-ink px-3 text-sm text-bone focus:outline-2 focus:outline-offset-2 focus:outline-clay sm:min-w-72"
+                >
+                  {ownedWebsites.map((website) => (
+                    <option key={website.id} value={website.id} className="bg-bone text-ink">
+                      {website.name} ({website.status})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           <button
             type="button"
             onClick={continueToCheckout}
-            disabled={isSavingDraft}
+            disabled={isStartingCheckout}
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bone disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSavingDraft ? "Saving plan…" : "Continue to secure checkout"}
+            {isStartingCheckout ? "Opening secure checkout…" : "Continue to secure checkout"}
           </button>
         </div>
         {notice && (
