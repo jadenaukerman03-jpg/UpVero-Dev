@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 
 import { BrandMark } from "./BrandMark";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { getCurrentAdminAccess } from "@/services/admin-access";
 
 const links = [
   { to: "/", label: "Home" },
@@ -12,6 +15,22 @@ const links = [
 
 export function MarketingHeader() {
   const [open, setOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const getAdminAccess = useServerFn(getCurrentAdminAccess);
+
+  useEffect(() => {
+    let active = true;
+    async function loadAdminAccess() {
+      const { data } = await createBrowserSupabaseClient().auth.getSession();
+      if (!data.session) return;
+      const access = await getAdminAccess({ data: { accessToken: data.session.access_token } });
+      if (active) setIsAdmin(access.isAdmin);
+    }
+    void loadAdminAccess();
+    return () => {
+      active = false;
+    };
+  }, [getAdminAccess]);
 
   return (
     <header className="uv-header">
@@ -23,6 +42,11 @@ export function MarketingHeader() {
               {link.label}
             </Link>
           ))}
+          {isAdmin ? (
+            <Link to="/admin" className="uv-nav-link">
+              Admin
+            </Link>
+          ) : null}
         </nav>
         <div className="uv-header-actions">
           <Link to="/account" className="uv-button uv-button-ghost">
@@ -49,6 +73,11 @@ export function MarketingHeader() {
               {link.label}
             </Link>
           ))}
+          {isAdmin ? (
+            <Link to="/admin" onClick={() => setOpen(false)} className="uv-nav-link">
+              Admin
+            </Link>
+          ) : null}
           <Link to="/account" onClick={() => setOpen(false)} className="uv-nav-link">
             Sign in
           </Link>

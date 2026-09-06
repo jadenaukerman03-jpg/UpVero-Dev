@@ -25,7 +25,7 @@ export const generateSiteConfigWithAI = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { authorizeProviderOperation } =
       await import("./provider-operation-authorization.server");
-    await authorizeProviderOperation(data, { operation: "ai_generation", minimumTier: "launch" });
+    await authorizeProviderOperation(data, { operation: "ai_generation", adminOnly: true });
     const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
     return createAiSiteConfig(data.lead);
   });

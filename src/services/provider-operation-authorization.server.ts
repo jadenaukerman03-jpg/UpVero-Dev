@@ -23,6 +23,7 @@ function deny(statusCode: number, message: string): never {
 type AuthorizationOptions = {
   operation: ProviderOperation;
   minimumTier?: SubscriptionTier;
+  adminOnly?: boolean;
 };
 
 /**
@@ -42,7 +43,13 @@ export async function authorizeProviderOperation(
     return deny(401, "Sign in is required for this operation.");
   }
 
-  const { client, user } = authenticated;
+  let { client, user } = authenticated;
+  if (options.adminOnly) {
+    const { requireAdministrator } = await import("./admin-access");
+    const administrator = await requireAdministrator(scope.accessToken ?? "");
+    client = administrator.client;
+    user = administrator.user;
+  }
   const { data: business, error: businessError } = await client
     .from("businesses")
     .select("id")
@@ -66,7 +73,7 @@ export async function authorizeProviderOperation(
     }
   }
 
-  if (options.minimumTier) {
+  if (options.minimumTier && !options.adminOnly) {
     let subscriptionQuery = client
       .from("subscriptions")
       .select("tier")

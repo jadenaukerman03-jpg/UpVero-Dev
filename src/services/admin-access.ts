@@ -25,3 +25,35 @@ export const getCurrentAdminAccess = createServerFn({ method: "POST" })
       return { authenticated: false, isAdmin: false };
     }
   });
+
+/**
+ * Server-only administrative boundary for operations that spend provider
+ * credits or expose internal tooling. The RLS query can only see the current
+ * user's own allowlist row; no browser-provided role is trusted.
+ */
+export async function requireAdministrator(accessToken: string) {
+  const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
+  let authenticated: Awaited<ReturnType<typeof requireAuthenticatedCustomer>>;
+  try {
+    authenticated = await requireAuthenticatedCustomer(accessToken);
+  } catch {
+    throw new Response(JSON.stringify({ error: "Sign in is required for this operation." }), {
+      status: 401,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+
+  const { client, user } = authenticated;
+  const { data: row, error } = await client
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (error || !row) {
+    throw new Response(JSON.stringify({ error: "Administrator access is required." }), {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+  return authenticated;
+}

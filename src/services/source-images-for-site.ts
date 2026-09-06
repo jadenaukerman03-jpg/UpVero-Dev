@@ -30,7 +30,7 @@ export const sourceImagesForSiteServer = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { authorizeProviderOperation } =
       await import("./provider-operation-authorization.server");
-    await authorizeProviderOperation(data, { operation: "image_sourcing", minimumTier: "launch" });
+    await authorizeProviderOperation(data, { operation: "image_sourcing", adminOnly: true });
     const { sourceImagesForSite } = await import("./source-images-for-site.server");
     return sourceImagesForSite(data);
   });

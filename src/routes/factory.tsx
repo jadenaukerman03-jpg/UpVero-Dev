@@ -80,10 +80,10 @@ function FactoryRoute() {
     );
   }
 
-  return <FactoryDevelopmentTool />;
+  return <AdminResearchTool />;
 }
 
-function FactoryDevelopmentTool() {
+export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null);
   const researchFormRef = useRef<HTMLFormElement>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -345,15 +345,15 @@ function FactoryDevelopmentTool() {
   }
 
   return (
-    <div className="min-h-screen bg-sand/40 text-ink">
+    <div className={embedded ? "bg-sand/40 text-ink" : "min-h-screen bg-sand/40 text-ink"}>
       <section className="mx-auto max-w-3xl px-6 py-12 sm:px-10">
-        <p className="text-sm font-semibold tracking-wide text-clay">Development tool</p>
+        <p className="text-sm font-semibold tracking-wide text-clay">Administrator tool</p>
         <h1 className="mt-2 font-display text-3xl font-medium tracking-tight sm:text-4xl">
           Lead → website configuration
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-ink/70">
-          This local-only tool creates a validated draft SiteConfig. It does not save leads or
-          publish a website.
+          Research a business by name and location, review the verified findings, then create a
+          private website preview. It does not publish a website.
         </p>
 
         <div className="mt-8 rounded-xl bg-white p-6 shadow-sm ring-1 ring-ink/8">

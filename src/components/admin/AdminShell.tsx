@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { BrandMark } from "@/components/upvero/BrandMark";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentAdminAccess } from "@/services/admin-access";
+import { AdminResearchTool } from "@/routes/factory";
 
 export function AdminShell() {
   const [state, setState] = useState<"loading" | "unauthenticated" | "unauthorized" | "authorized">(
@@ -57,14 +58,13 @@ export function AdminShell() {
           <span className="uv-admin-label">Admin command center</span>
         </div>
       </header>
-      <main className="uv-dashboard uv-container">
-        <p className="uv-eyebrow">Administrator</p>
-        <h1>Command center</h1>
-        <div className="uv-empty-card">
-          <ShieldAlert size={24} aria-hidden="true" />
-          <h2>Secure foundation ready</h2>
-          <p>Administrative tools will be added here in focused, separately authorized steps.</p>
+      <main>
+        <div className="uv-dashboard uv-container">
+          <p className="uv-eyebrow">Administrator</p>
+          <h1>Command center</h1>
+          <p className="uv-lead">Research a business and create its private, personalized demo.</p>
         </div>
+        <AdminResearchTool embedded />
       </main>
     </div>
   );
