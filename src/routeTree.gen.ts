@@ -21,6 +21,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SubscriptionRouteImport } from './routes/subscription'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as DemoTokenRouteImport } from './routes/demo/$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +83,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoTokenRoute = DemoTokenRouteImport.update({
+  id: '/demo/$token',
+  path: '/demo/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/subscription': typeof SubscriptionRoute
   '/terms': typeof TermsRoute
+  '/demo/$token': typeof DemoTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/subscription': typeof SubscriptionRoute
   '/terms': typeof TermsRoute
+  '/demo/$token': typeof DemoTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/subscription': typeof SubscriptionRoute
   '/terms': typeof TermsRoute
+  '/demo/$token': typeof DemoTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/subscription'
     | '/terms'
+    | '/demo/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/subscription'
     | '/terms'
+    | '/demo/$token'
   id:
     | '__root__'
     | '/'
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/subscription'
     | '/terms'
+    | '/demo/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,6 +196,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SubscriptionRoute: typeof SubscriptionRoute
   TermsRoute: typeof TermsRoute
+  DemoTokenRoute: typeof DemoTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demo/$token': {
+      id: '/demo/$token'
+      path: '/demo/$token'
+      fullPath: '/demo/$token'
+      preLoaderRoute: typeof DemoTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -288,6 +308,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SubscriptionRoute: SubscriptionRoute,
   TermsRoute: TermsRoute,
+  DemoTokenRoute: DemoTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,4 +1,4 @@
-import { FileSpreadsheet, LoaderCircle, Search, Send, Upload } from "lucide-react";
+import { ExternalLink, FileSpreadsheet, LoaderCircle, Search, Send, Sparkles, Upload } from "lucide-react";
 import { useState, type ChangeEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -10,6 +10,7 @@ import {
   listRegistryCandidates,
   listRegistryProcessingJobs,
   processQueuedRegistryResearch,
+  processNextProspectDemo,
   queueCandidateAction,
 } from "@/services/admin-registry";
 
@@ -20,6 +21,7 @@ type Candidate = {
   research_source_count: number;
   last_research_error: string | null;
   research_result?: { sources?: Array<{ sourceUrl?: string; pageTitle?: string; rawFindings?: string }> } | null;
+  prospect_demos?: Array<{ preview_token: string; status: string }>;
   registry_businesses: {
     id: string;
     name: string;
@@ -183,6 +185,7 @@ export function RegistryPipeline() {
   const loadJobs = useServerFn(listRegistryProcessingJobs);
   const queueAction = useServerFn(queueCandidateAction);
   const runResearch = useServerFn(processQueuedRegistryResearch);
+  const generateNextDemo = useServerFn(processNextProspectDemo);
 
   async function token() {
     const { data } = await createBrowserSupabaseClient().auth.getSession();
@@ -226,7 +229,7 @@ export function RegistryPipeline() {
       const complete = await completeImport({ data: { accessToken, registryId: registry.id } });
       setProgress(`Import complete: ${complete.importedCount.toLocaleString()} unique businesses ready for review.`);
       const shortlist = await loadCandidates({ data: { accessToken, registryId: registry.id, limit: 50 } });
-      setCandidates(shortlist as Candidate[]);
+      setCandidates(shortlist as unknown as Candidate[]);
       setJobs((await loadJobs({ data: { accessToken, registryId: registry.id, limit: 10 } })) as ProcessingJob[]);
     } catch (error) {
       setProgress(error instanceof Error ? error.message : "The import could not be completed. You can safely retry it.");
@@ -244,8 +247,10 @@ export function RegistryPipeline() {
       setProgress(`${result.queued} businesses queued for ${action === "research" ? "manual research" : "demo generation"}.`);
       setSelected([]);
       const shortlist = await loadCandidates({ data: { accessToken, registryId, limit: 50 } });
-      setCandidates(shortlist as Candidate[]);
+      setCandidates(shortlist as unknown as Candidate[]);
       setJobs((await loadJobs({ data: { accessToken, registryId, limit: 10 } })) as ProcessingJob[]);
+    } catch (error) {
+      setProgress(error instanceof Error ? error.message : "Unable to queue the selected businesses.");
     } finally { setBusy(false); }
   }
 
@@ -257,10 +262,31 @@ export function RegistryPipeline() {
       const result = await runResearch({ data: { accessToken, registryId, batchSize: 5 } });
       setProgress(`Research batch finished: ${result.completed} completed, ${result.failed} failed. Failed rows can be queued again.`);
       const shortlist = await loadCandidates({ data: { accessToken, registryId, limit: 50 } });
-      setCandidates(shortlist as Candidate[]);
+      setCandidates(shortlist as unknown as Candidate[]);
       setJobs((await loadJobs({ data: { accessToken, registryId, limit: 10 } })) as ProcessingJob[]);
     } catch (error) { setProgress(error instanceof Error ? error.message : "Research batch failed."); }
     finally { setBusy(false); }
+  }
+
+  async function generateApprovedDemo() {
+    if (!registryId) return;
+    setBusy(true);
+    try {
+      const accessToken = await token();
+      const result = await generateNextDemo({ data: { accessToken, registryId } });
+      setProgress(
+        result.generated
+          ? `Private demo generated. ${result.remaining ? `${result.remaining} approved demo${result.remaining === 1 ? "" : "s"} remain queued.` : "No approved demos remain queued."}`
+          : "No approved demo is currently queued.",
+      );
+      const shortlist = await loadCandidates({ data: { accessToken, registryId, limit: 50 } });
+      setCandidates(shortlist as unknown as Candidate[]);
+      setJobs((await loadJobs({ data: { accessToken, registryId, limit: 10 } })) as ProcessingJob[]);
+    } catch (error) {
+      setProgress(error instanceof Error ? error.message : "Demo generation failed. You can retry it safely.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -277,7 +303,7 @@ export function RegistryPipeline() {
         </div>
         {parsed ? <div className="uv-admin-import-card"><label>Target industry<input className="uv-input" value={targetIndustry} onChange={(event) => setTargetIndustry(event.target.value)} /></label><p>{parsed.rows.length.toLocaleString()} rows detected. Mapping can be adjusted before import.</p><div className="uv-admin-mapping">{Object.keys(fieldAliases).map((field) => <label key={field}>{field}<select className="uv-input" value={mapping[field] ?? ""} onChange={(event) => setMapping((current) => ({ ...current, [field]: event.target.value }))}><option value="">Not provided</option>{parsed.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div><button type="button" className="uv-button uv-button-primary" disabled={busy} onClick={() => void startImport()}>{busy ? <><LoaderCircle className="animate-spin" size={16} /> Importing…</> : <><FileSpreadsheet size={16} /> Import and score registry</>}</button></div> : null}
         {progress ? <p className="uv-notice" role="status">{progress}</p> : null}
-        {registryId ? <section className="uv-admin-shortlist"><div><p className="uv-eyebrow">Review shortlist</p><h3>Highest preliminary scores</h3></div><div className="uv-admin-actions"><button type="button" className="uv-button uv-button-secondary" disabled={busy || selected.length === 0} onClick={() => void queue("research")}>Queue research ({selected.length})</button><button type="button" className="uv-button uv-button-primary" disabled={busy || selected.length === 0} onClick={() => void queue("demo")}>Queue demos ({selected.length})</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void researchNextBatch()}><Search size={16} /> Process next research batch</button></div><div className="uv-admin-candidates">{candidates.map((candidate) => <article key={candidate.id}><label><input type="checkbox" checked={selected.includes(candidate.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id))} /><span className="uv-admin-score">{candidate.registry_businesses.preliminary_score}/100</span></label><div><h4>{candidate.registry_businesses.name}</h4><p>{[candidate.registry_businesses.city, candidate.registry_businesses.state, candidate.registry_businesses.industry].filter(Boolean).join(" · ") || "Registry details incomplete"}</p><ul>{candidate.registry_businesses.preliminary_reasons.map((reason, index) => <li key={`${reason.text}-${index}`}>{reason.kind === "confirmed" ? "Confirmed" : "Estimate"}: {reason.text}</li>)}</ul><p>Review: {candidate.review_status.replaceAll("_", " ")} · Sources: {candidate.research_source_count}{candidate.last_research_error ? ` · ${candidate.last_research_error}` : ""}</p>{candidate.research_result?.sources?.length ? <ul className="uv-admin-sources">{candidate.research_result.sources.slice(0, 3).map((source, index) => <li key={`${source.sourceUrl}-${index}`}>{source.sourceUrl ? <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.pageTitle || source.sourceUrl}</a> : "Source URL unavailable"}{source.rawFindings ? ` — ${source.rawFindings}` : ""}</li>)}</ul> : null}</div></article>)}</div>{jobs.length ? <div className="uv-admin-jobs"><h4>Recent processing jobs</h4>{jobs.map((job) => <p key={job.id}>{job.job_type.replaceAll("_", " ")} · {job.status} · attempt {job.attempts}{job.result?.remaining ? ` · ${job.result.remaining} remaining` : ""}{job.last_error ? ` · ${job.last_error}` : ""}</p>)}</div> : null}<p className="uv-admin-queue-note"><Send size={15} /> Queued demos are not generated or sent automatically. Review and approve them in a later step.</p></section> : null}
+        {registryId ? <section className="uv-admin-shortlist"><div><p className="uv-eyebrow">Review shortlist</p><h3>Highest preliminary scores</h3></div><div className="uv-admin-actions"><button type="button" className="uv-button uv-button-secondary" disabled={busy || selected.length === 0} onClick={() => void queue("research")}>Queue research ({selected.length})</button><button type="button" className="uv-button uv-button-primary" disabled={busy || selected.length === 0} onClick={() => void queue("demo")}>Queue demos ({selected.length})</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void researchNextBatch()}><Search size={16} /> Process next research batch</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void generateApprovedDemo()}><Sparkles size={16} /> Generate next approved demo</button></div><div className="uv-admin-candidates">{candidates.map((candidate) => <article key={candidate.id}><label><input type="checkbox" checked={selected.includes(candidate.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id))} /><span className="uv-admin-score">{candidate.registry_businesses.preliminary_score}/100</span></label><div><h4>{candidate.registry_businesses.name}</h4><p>{[candidate.registry_businesses.city, candidate.registry_businesses.state, candidate.registry_businesses.industry].filter(Boolean).join(" · ") || "Registry details incomplete"}</p><ul>{candidate.registry_businesses.preliminary_reasons.map((reason, index) => <li key={`${reason.text}-${index}`}>{reason.kind === "confirmed" ? "Confirmed" : "Estimate"}: {reason.text}</li>)}</ul><p>Review: {candidate.review_status.replaceAll("_", " ")} · Sources: {candidate.research_source_count}{candidate.last_research_error ? ` · ${candidate.last_research_error}` : ""}</p>{candidate.prospect_demos?.[0]?.status === "ready" ? <p><a className="uv-admin-demo-link" href={`/demo/${candidate.prospect_demos[0].preview_token}`} target="_blank" rel="noreferrer">Open private preview <ExternalLink size={14} /></a></p> : null}{candidate.research_result?.sources?.length ? <ul className="uv-admin-sources">{candidate.research_result.sources.slice(0, 3).map((source, index) => <li key={`${source.sourceUrl}-${index}`}>{source.sourceUrl ? <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.pageTitle || source.sourceUrl}</a> : "Source URL unavailable"}{source.rawFindings ? ` — ${source.rawFindings}` : ""}</li>)}</ul> : null}</div></article>)}</div>{jobs.length ? <div className="uv-admin-jobs"><h4>Recent processing jobs</h4>{jobs.map((job) => <p key={job.id}>{job.job_type.replaceAll("_", " ")} · {job.status} · attempt {job.attempts}{job.result?.remaining ? ` · ${job.result.remaining} remaining` : ""}{job.last_error ? ` · ${job.last_error}` : ""}</p>)}</div> : null}<p className="uv-admin-queue-note"><Send size={15} /> Demos are generated only when you explicitly queue candidates and click “Generate next approved demo.” Nothing is sent automatically.</p></section> : null}
       </div>
     </section>
   );

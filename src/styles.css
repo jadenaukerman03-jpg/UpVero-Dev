@@ -1179,6 +1179,16 @@
   text-underline-offset: 0.15em;
 }
 
+.uv-admin-demo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--uv-primary-deep);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 .uv-admin-candidates p,
 .uv-admin-candidates li,
 .uv-admin-queue-note {

@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { createLead } from "@/data/leads";
+import { siteConfigSchema } from "@/data/site";
+import { normalizeResearchProfile } from "@/services/business-research";
+
 const cellSchema = z.string().trim().max(2_000);
 const rowSchema = z.record(z.string().max(160), cellSchema).refine(
   (row) => Object.keys(row).length <= 80,
@@ -55,11 +59,11 @@ function parseDate(value: string | undefined) {
 
 function scoreBusiness(input: {
   name: string;
-  industry?: string;
-  entityType?: string;
-  registrationStatus?: string;
-  registrationDate?: string;
-  websiteUrl?: string;
+  industry?: string | undefined;
+  entityType?: string | undefined;
+  registrationStatus?: string | undefined;
+  registrationDate?: string | undefined;
+  websiteUrl?: string | undefined;
   targetIndustry: string;
 }) {
   const reasons: Array<{ kind: "confirmed" | "estimate"; points: number; text: string }> = [];
@@ -225,7 +229,7 @@ export const importRegistryBatch = createServerFn({ method: "POST" })
       .upsert(records, { onConflict: "dedupe_key", ignoreDuplicates: true });
     if (insertError) throw new Error("Unable to import this batch.");
 
-    const keys = records.map((record) => record.dedupe_key as string);
+    const keys = records.map((record) => record["dedupe_key"] as string);
     const { data: businesses, error: lookupError } = await client
       .from("registry_businesses")
       .select("id")
@@ -271,7 +275,7 @@ export const listRegistryCandidates = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: candidates, error } = await client
       .from("registry_candidates")
-      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
+      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
       .eq("registry_businesses.registry_id", registry.id)
       .order("preliminary_score", { referencedTable: "registry_businesses", ascending: false })
       .limit(data.limit);
@@ -294,12 +298,15 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: matching, error: lookupError } = await client
       .from("registry_candidates")
-      .select("id, registry_businesses!inner(registry_id)")
+      .select("id, review_status, registry_businesses!inner(registry_id)")
       .in("id", data.candidateIds)
       .eq("registry_businesses.registry_id", registry.id);
     if (lookupError) throw new Error("Unable to verify selected businesses.");
     const ids = (matching ?? []).map((candidate) => candidate.id);
     if (ids.length !== data.candidateIds.length) respond(404, "One or more selected businesses are unavailable.");
+    if (data.action === "demo" && (matching ?? []).some((candidate) => candidate.review_status !== "research_complete")) {
+      respond(409, "Only research-complete businesses can be approved for a private demo.");
+    }
     const update =
       data.action === "research"
         ? { review_status: "research_queued" }
@@ -442,4 +449,124 @@ export const listRegistryProcessingJobs = createServerFn({ method: "POST" })
       .limit(data.limit);
     if (error) throw new Error("Unable to load processing jobs.");
     return jobs ?? [];
+  });
+
+/** Generates one explicitly queued demo at a time, preserving the remaining queue. */
+export const processNextProspectDemo = createServerFn({ method: "POST" })
+  .validator((data: unknown) => accessSchema.extend({ registryId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: claimed, error: claimError } = await client.rpc("claim_next_registry_job", {
+      p_owner_id: user.id,
+      p_job_type: "demo_generation",
+      p_lock_seconds: 600,
+    });
+    if (claimError) throw new Error("Unable to claim a demo job.");
+    const job = (Array.isArray(claimed) ? claimed[0] : claimed) as
+      | { id: string; registry_id: string; payload: { candidateIds?: unknown } }
+      | null;
+    if (!job) return { generated: 0, remaining: 0, previewToken: undefined };
+    if (job.registry_id !== registry.id) {
+      await client
+        .from("registry_processing_jobs")
+        .update({ status: "queued", locked_until: null })
+        .eq("id", job.id);
+      respond(409, "A queued demo belongs to a different registry. Select that registry before processing it.");
+    }
+    const parsedIds = z.array(z.string().uuid()).min(1).max(50).safeParse(job.payload.candidateIds);
+    if (!parsedIds.success) throw new Error("The claimed demo job has an invalid payload.");
+    const candidateId = parsedIds.data[0]!;
+    const remainingIds = parsedIds.data.slice(1);
+    const { data: candidate, error: candidateError } = await client
+      .from("registry_candidates")
+      .select("id, research_result, registry_businesses!inner(name, city, state, industry, website_url, registration_date, registry_id)")
+      .eq("id", candidateId)
+      .eq("review_status", "demo_queued")
+      .eq("registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (candidateError || !candidate) throw new Error("The queued prospect is unavailable.");
+    const business = candidate.registry_businesses as unknown as {
+      name: string;
+      city: string | null;
+      state: string | null;
+      industry: string | null;
+      website_url: string | null;
+      registration_date: string | null;
+    };
+    try {
+      const { data: dailyBudget, error: budgetError } = await client.rpc(
+        "consume_admin_provider_daily_budget",
+        { p_owner_id: user.id, p_operation: "ai_generation", p_daily_limit: 25 },
+      );
+      if (budgetError || dailyBudget !== true) throw new Error("Daily demo-generation budget reached. Try again tomorrow.");
+      const { data: hourlyQuota, error: quotaError } = await client.rpc(
+        "consume_provider_operation_quota",
+        { p_owner_id: user.id, p_operation: "ai_generation" },
+      );
+      if (quotaError || hourlyQuota !== true) throw new Error("Demo-generation quota reached. Try again later.");
+      const normalized = candidate.research_result
+        ? normalizeResearchProfile(candidate.research_result as Parameters<typeof normalizeResearchProfile>[0])
+        : {};
+      const lead = createLead({
+        ...normalized,
+        businessName: business.name,
+        industry: normalized.industry ?? business.industry ?? undefined,
+        city: normalized.city ?? business.city ?? undefined,
+        state: normalized.state ?? business.state ?? undefined,
+        website: normalized.website ?? business.website_url ?? undefined,
+        source: "admin-registry-demo",
+      });
+      const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
+      const config = await createAiSiteConfig(lead);
+      const { data: demo, error: demoError } = await client
+        .from("prospect_demos")
+        .upsert(
+          { registry_candidate_id: candidate.id, created_by: user.id, status: "ready", site_config: config, generated_at: new Date().toISOString(), last_error: null },
+          { onConflict: "registry_candidate_id" },
+        )
+        .select("preview_token")
+        .single();
+      if (demoError || !demo) throw new Error("Unable to save the private demo.");
+      await client.from("registry_candidates").update({ review_status: "demo_complete" }).eq("id", candidate.id);
+      await client
+        .from("registry_processing_jobs")
+        .update({
+          status: remainingIds.length ? "queued" : "completed",
+          payload: { candidateIds: remainingIds },
+          locked_until: null,
+          completed_at: remainingIds.length ? null : new Date().toISOString(),
+          result: { generated: 1, remaining: remainingIds.length },
+        })
+        .eq("id", job.id);
+      return { generated: 1, remaining: remainingIds.length, previewToken: demo.preview_token };
+    } catch (error) {
+      await client
+        .from("registry_candidates")
+        .update({ review_status: "research_complete", last_research_error: error instanceof Error ? error.message.slice(0, 500) : "Demo generation failed." })
+        .eq("id", candidate.id);
+      await client
+        .from("registry_processing_jobs")
+        .update({ status: "failed", locked_until: null, completed_at: new Date().toISOString(), last_error: error instanceof Error ? error.message.slice(0, 500) : "Demo generation failed." })
+        .eq("id", job.id);
+      throw error;
+    }
+  });
+
+/** Public capability endpoint: only a hard-to-guess private preview token is accepted. */
+export const getPrivateProspectDemo = createServerFn({ method: "GET" })
+  .validator((data: unknown) => z.object({ token: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+    const { data: demo, error } = await createSupabaseAdminClient()
+      .from("prospect_demos")
+      .select("site_config, status, expires_at")
+      .eq("preview_token", data.token)
+      .eq("status", "ready")
+      .maybeSingle();
+    if (error || !demo || (demo.expires_at && new Date(demo.expires_at) <= new Date()))
+      respond(404, "This private preview is unavailable.");
+    const config = siteConfigSchema.safeParse(demo.site_config);
+    if (!config.success) respond(404, "This private preview is unavailable.");
+    return config.data;
   });
