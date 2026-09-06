@@ -237,6 +237,24 @@ export const listOwnedWebsites = createServerFn({ method: "POST" })
     return websites;
   });
 
+/** Returns a draft only after both token verification and the database RLS owner check succeed. */
+export const getOwnedWebsite = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({ accessToken: accessTokenSchema, websiteId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
+    const { client } = await requireAuthenticatedCustomer(data.accessToken);
+    const { data: website, error } = await client
+      .from("websites")
+      .select("id, name, status, business_id, site_config, created_at, updated_at")
+      .eq("id", data.websiteId)
+      .maybeSingle();
+    if (error) serverError(error, "load the website draft");
+    if (!website) authorizationFailure(404, "This website draft is unavailable.");
+    return website;
+  });
+
 export const updateOwnedWebsiteStatus = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const parsed = z

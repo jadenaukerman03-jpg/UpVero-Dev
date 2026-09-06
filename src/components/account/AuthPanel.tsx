@@ -1,10 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/upvero/BrandMark";
 
 type AuthMode = "sign-in" | "sign-up";
+
+function requestedDestination(): string {
+  if (typeof window === "undefined") return "/dashboard";
+  const destination = new URLSearchParams(window.location.search).get("next");
+  return destination && destination.startsWith("/") && !destination.startsWith("//")
+    ? destination
+    : "/dashboard";
+}
 
 export function AuthPanel() {
   const [mode, setMode] = useState<AuthMode>("sign-in");
@@ -41,11 +48,11 @@ export function AuthPanel() {
       setMessage(result.error.message);
       return;
     }
-    setMessage(
-      mode === "sign-up"
-        ? "Account created. Check your email if confirmation is enabled, then sign in."
-        : "You are signed in.",
-    );
+    if (mode === "sign-in") {
+      window.location.assign(requestedDestination());
+      return;
+    }
+    setMessage("Account created. Check your email if confirmation is enabled, then sign in.");
   }
 
   async function signOut() {
@@ -71,9 +78,9 @@ export function AuthPanel() {
           {signedInEmail ? (
             <div className="uv-auth-content">
               <p>Signed in as {signedInEmail}.</p>
-              <Link to="/dashboard" className="uv-button uv-button-primary">
+              <a href={requestedDestination()} className="uv-button uv-button-primary">
                 Open your dashboard
-              </Link>
+              </a>
               <button
                 type="button"
                 disabled={busy}

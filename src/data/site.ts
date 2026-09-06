@@ -8,6 +8,10 @@ export type NavigationItem = { label: string; href: string };
 export type SiteConfigKey = "vantageRoofing" | "summitPeakRoofing";
 
 export type SiteConfig = {
+  design?: {
+    visualDirection: "professional" | "modern" | "luxury" | "friendly" | "minimal";
+    primaryColor?: string;
+  };
   brand: {
     name: string;
     shortName: string;
@@ -86,6 +90,15 @@ const ctaSchema = z.object({ label: z.string().min(1), href: safeLinkHrefSchema 
 
 /** Runtime validation for generated or eventually AI-provided site configurations. */
 export const siteConfigSchema = z.object({
+  design: z
+    .object({
+      visualDirection: z.enum(["professional", "modern", "luxury", "friendly", "minimal"]),
+      primaryColor: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .optional(),
+    })
+    .optional(),
   brand: z.object({
     name: z.string().min(1),
     shortName: z.string().min(1),

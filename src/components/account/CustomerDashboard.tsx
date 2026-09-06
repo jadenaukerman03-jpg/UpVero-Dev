@@ -70,10 +70,7 @@ export function CustomerDashboard() {
           Your drafts and live websites are private to your authenticated Upvero account.
         </p>
         <div className="uv-dashboard-toolbar">
-          <Link
-            to={import.meta.env.DEV ? "/factory" : "/contact"}
-            className="uv-button uv-button-primary"
-          >
+          <Link to="/draft" className="uv-button uv-button-primary">
             <Plus size={16} /> Create a website draft
           </Link>
           <Link to="/launch" className="uv-button uv-button-secondary">
@@ -97,8 +94,8 @@ export function CustomerDashboard() {
                   new Date(website.updated_at),
                 )}
               </p>
-              <Link to="/launch" className="uv-text-link">
-                Manage plan and launch →
+              <Link to="/draft" search={{ website: website.id }} className="uv-text-link">
+                Open draft preview →
               </Link>
             </article>
           ))}

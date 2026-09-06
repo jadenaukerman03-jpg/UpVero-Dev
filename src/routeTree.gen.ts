@@ -14,6 +14,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DraftRouteImport } from './routes/draft'
 import { Route as FactoryRouteImport } from './routes/factory'
 import { Route as LaunchRouteImport } from './routes/launch'
 import { Route as PricingRouteImport } from './routes/pricing'
@@ -44,6 +45,11 @@ const ContactRoute = ContactRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DraftRoute = DraftRouteImport.update({
+  id: '/draft',
+  path: '/draft',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FactoryRoute = FactoryRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
+  '/draft': typeof DraftRoute
   '/factory': typeof FactoryRoute
   '/launch': typeof LaunchRoute
   '/pricing': typeof PricingRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
+  '/draft': typeof DraftRoute
   '/factory': typeof FactoryRoute
   '/launch': typeof LaunchRoute
   '/pricing': typeof PricingRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
+  '/draft': typeof DraftRoute
   '/factory': typeof FactoryRoute
   '/launch': typeof LaunchRoute
   '/pricing': typeof PricingRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/contact'
     | '/dashboard'
+    | '/draft'
     | '/factory'
     | '/launch'
     | '/pricing'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/contact'
     | '/dashboard'
+    | '/draft'
     | '/factory'
     | '/launch'
     | '/pricing'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/contact'
     | '/dashboard'
+    | '/draft'
     | '/factory'
     | '/launch'
     | '/pricing'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRoute
+  DraftRoute: typeof DraftRoute
   FactoryRoute: typeof FactoryRoute
   LaunchRoute: typeof LaunchRoute
   PricingRoute: typeof PricingRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/draft': {
+      id: '/draft'
+      path: '/draft'
+      fullPath: '/draft'
+      preLoaderRoute: typeof DraftRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/factory': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRoute,
+  DraftRoute: DraftRoute,
   FactoryRoute: FactoryRoute,
   LaunchRoute: LaunchRoute,
   PricingRoute: PricingRoute,
