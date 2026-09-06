@@ -14,6 +14,7 @@ import { useState } from "react";
 
 import { MarketingLayout } from "@/components/upvero/MarketingLayout";
 import { MarketingPlanCard } from "@/components/upvero/MarketingPlanCard";
+import type { SubscriptionTier } from "@/data/customization-tiers";
 import { subscriptionPlans } from "@/data/subscription-plans";
 
 export const Route = createFileRoute("/")({
@@ -85,6 +86,7 @@ const valueProps: Array<{ icon: LucideIcon; title: string; body: string }> = [
 
 function Index() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [expandedPlanId, setExpandedPlanId] = useState<SubscriptionTier | null>(null);
 
   return (
     <MarketingLayout>
@@ -214,9 +216,24 @@ function Index() {
             Compare plans <ArrowRight size={16} />
           </Link>
         </div>
-        <div className="uv-plan-grid">
+        <div
+          className={
+            expandedPlanId
+              ? `uv-plan-grid uv-plan-grid-is-expanded uv-plan-grid-expanded-${expandedPlanId}`
+              : "uv-plan-grid"
+          }
+        >
           {subscriptionPlans.map((plan) => (
-            <MarketingPlanCard key={plan.id} plan={plan} interactive />
+            <MarketingPlanCard
+              key={plan.id}
+              plan={plan}
+              interactive
+              isExpanded={expandedPlanId === plan.id}
+              isCondensed={expandedPlanId !== null && expandedPlanId !== plan.id}
+              onToggle={() =>
+                setExpandedPlanId((current) => (current === plan.id ? null : plan.id))
+              }
+            />
           ))}
         </div>
       </section>
