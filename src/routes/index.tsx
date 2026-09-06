@@ -216,20 +216,20 @@ function Index() {
         </div>
         <div className="uv-plan-grid">
           {subscriptionPlans.map((plan) => (
-            <MarketingPlanCard key={plan.id} plan={plan} />
+            <MarketingPlanCard key={plan.id} plan={plan} interactive />
           ))}
         </div>
       </section>
 
       <section className="uv-band">
-        <div className="uv-container uv-faq">
+        <div className="uv-container uv-faq uv-home-faq">
           <h2>Questions we hear a lot</h2>
           <p>Straight answers about previews, pricing, ownership, and launch.</p>
           <div>
             {faqs.map(([question, answer], index) => {
               const isOpen = openFaq === index;
               return (
-                <article key={question}>
+                <article key={question} className={isOpen ? "uv-faq-item is-open" : "uv-faq-item"}>
                   <button
                     type="button"
                     onClick={() => setOpenFaq(isOpen ? null : index)}
@@ -238,7 +238,9 @@ function Index() {
                     {question}
                     <ChevronDown size={18} className={isOpen ? "uv-chevron-open" : ""} />
                   </button>
-                  {isOpen ? <p>{answer}</p> : null}
+                  <div className="uv-faq-answer" aria-hidden={!isOpen}>
+                    <p>{answer}</p>
+                  </div>
                 </article>
               );
             })}
@@ -247,16 +249,14 @@ function Index() {
       </section>
 
       <section className="uv-section uv-container">
-        <div className="uv-final-cta">
+        <Link to="/draft" className="uv-final-cta uv-clickable-card">
           <h2>See your website before you decide.</h2>
           <p>
             Tell us about your business and we’ll build a personalized preview. No obligation and no
             card required.
           </p>
-          <Link to="/contact" className="uv-button uv-button-primary">
-            Request my preview
-          </Link>
-        </div>
+          <span className="uv-button uv-button-primary">Request my preview</span>
+        </Link>
       </section>
     </MarketingLayout>
   );

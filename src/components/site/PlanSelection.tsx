@@ -14,6 +14,7 @@ import {
   listOwnedWebsites,
   savePurchaseDraft,
 } from "@/services/customer-data";
+import type { SubscriptionTier } from "@/data/customization-tiers";
 
 type OwnedWebsite = {
   id: string;
@@ -80,8 +81,8 @@ function PlanCard({
   );
 }
 
-export function PlanSelection() {
-  const [selectedPlanId, setSelectedPlanId] = useState("growth");
+export function PlanSelection({ initialPlanId }: { initialPlanId?: SubscriptionTier }) {
+  const [selectedPlanId, setSelectedPlanId] = useState<SubscriptionTier>(initialPlanId ?? "growth");
   const [ownedWebsites, setOwnedWebsites] = useState<OwnedWebsite[]>([]);
   const [selectedWebsiteId, setSelectedWebsiteId] = useState("");
   const [notice, setNotice] = useState("");
@@ -91,6 +92,10 @@ export function PlanSelection() {
   const startStripeCheckout = useServerFn(createOwnedStripeCheckoutSession);
   const selectedPlan =
     subscriptionPlans.find((plan) => plan.id === selectedPlanId) ?? subscriptionPlans[1]!;
+
+  useEffect(() => {
+    if (initialPlanId) setSelectedPlanId(initialPlanId);
+  }, [initialPlanId]);
 
   useEffect(() => {
     let current = true;

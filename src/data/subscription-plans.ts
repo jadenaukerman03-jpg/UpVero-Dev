@@ -22,7 +22,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     id: "launch",
     name: "Launch",
     description: "A polished, focused website with essential controls.",
-    monthlyPriceCents: null,
+    monthlyPriceCents: 9900,
     setupFeeCents: null,
     stripePriceEnvironmentVariable: "STRIPE_PRICE_LAUNCH",
     features: [
@@ -38,7 +38,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     name: "Growth",
     badge: "Most popular",
     description: "The best balance of control, flexibility, and simplicity.",
-    monthlyPriceCents: null,
+    monthlyPriceCents: 19900,
     setupFeeCents: null,
     stripePriceEnvironmentVariable: "STRIPE_PRICE_GROWTH",
     features: [
@@ -53,7 +53,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     id: "professional",
     name: "Professional",
     description: "Full customization within UpVero platform capabilities.",
-    monthlyPriceCents: null,
+    monthlyPriceCents: 39900,
     setupFeeCents: null,
     stripePriceEnvironmentVariable: "STRIPE_PRICE_PROFESSIONAL",
     features: [
