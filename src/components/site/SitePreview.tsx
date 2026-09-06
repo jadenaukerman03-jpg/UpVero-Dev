@@ -35,7 +35,10 @@ export function SitePreview({
   const directionStorageKey = `website-factory-demo-direction:${config.brand.name.toLowerCase()}`;
   const fontStorageKey = `website-factory-demo-font:${config.brand.name.toLowerCase()}`;
   const [themeId, setThemeId] = useState("original");
-  const [directionId, setDirectionId] = useState<DemoVisualDirection>(recommendedDirection);
+  const configuredDirection = config.design?.visualDirection;
+  const [directionId, setDirectionId] = useState<DemoVisualDirection>(
+    configuredDirection ?? recommendedDirection,
+  );
   const [fontId, setFontId] = useState("original");
   const [tier, setTier] = useState<SubscriptionTier>("launch");
   const selectedTheme = themes.find((theme) => theme.id === themeId) ?? themes[0]!;
@@ -83,8 +86,14 @@ export function SitePreview({
         ...selectedTheme.variables,
         ...selectedDirection.variables,
         ...selectedFont.variables,
+        ...(config.design?.primaryColor ? { "--clay": config.design.primaryColor } : {}),
       } as CSSProperties)
-    : undefined;
+    : config.design
+      ? ({
+          ...selectedDirection.variables,
+          ...(config.design.primaryColor ? { "--clay": config.design.primaryColor } : {}),
+        } as CSSProperties)
+      : undefined;
   return (
     <SiteConfigProvider config={config}>
       <div

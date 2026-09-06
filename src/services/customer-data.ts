@@ -177,6 +177,53 @@ export const savePurchaseDraft = createServerFn({ method: "POST" })
     return draft;
   });
 
+export const createOwnedStripeCheckoutSession = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const parsed = z
+      .object({
+        accessToken: z.string().max(4096).optional(),
+        websiteId: z.string().uuid(),
+        tier: z.enum(subscriptionTiers),
+      })
+      .safeParse(data);
+    if (parsed.success) return parsed.data;
+    throw new Response(JSON.stringify({ error: "Invalid checkout request." }), {
+      status: 400,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  })
+  .handler(async ({ data }) => {
+    const { client, user } = await requireAuthenticatedOwner(data.accessToken);
+    const { data: website, error: ownershipError } = await client
+      .from("websites")
+      .select("id, business_id")
+      .eq("id", data.websiteId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    if (ownershipError || !website) {
+      return authorizationFailure(404, "This website is unavailable.");
+    }
+    await requireWithinCustomerQuota(user.id, "checkout_creation");
+
+    try {
+      const { createStripeCheckoutSession } = await import("@/services/stripe-checkout.server");
+      return await createStripeCheckoutSession({ owner: user, website, tier: data.tier });
+    } catch (error) {
+      // Keep provider and configuration internals server-side. The request is
+      // logged with no secret values so deployment issues remain diagnosable.
+      console.error("Stripe Checkout Session creation failed", {
+        websiteId: website.id,
+        ownerId: user.id,
+        tier: data.tier,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return authorizationFailure(
+        503,
+        "Secure checkout is temporarily unavailable. Please try again.",
+      );
+    }
+  });
+
 export const listOwnedWebsites = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ accessToken: accessTokenSchema }).parse(data))
   .handler(async ({ data }) => {
@@ -188,6 +235,24 @@ export const listOwnedWebsites = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false });
     if (error) serverError(error, "load your websites");
     return websites;
+  });
+
+/** Returns a draft only after both token verification and the database RLS owner check succeed. */
+export const getOwnedWebsite = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({ accessToken: accessTokenSchema, websiteId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
+    const { client } = await requireAuthenticatedCustomer(data.accessToken);
+    const { data: website, error } = await client
+      .from("websites")
+      .select("id, name, status, business_id, site_config, created_at, updated_at")
+      .eq("id", data.websiteId)
+      .maybeSingle();
+    if (error) serverError(error, "load the website draft");
+    if (!website) authorizationFailure(404, "This website draft is unavailable.");
+    return website;
   });
 
 export const updateOwnedWebsiteStatus = createServerFn({ method: "POST" })

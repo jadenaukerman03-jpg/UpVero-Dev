@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => {
     "SUPABASE_URL",
     "SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_SECRET_KEY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PRICE_LAUNCH",
+    "STRIPE_PRICE_GROWTH",
+    "STRIPE_PRICE_PROFESSIONAL",
+    "UPVERO_APP_URL",
   ] as const) {
     if (environment[name]) process.env[name] = environment[name];
   }
