@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/upvero/BrandMark";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentAdminAccess } from "@/services/admin-access";
 import { AdminResearchTool } from "@/routes/factory";
+import { RegistryPipeline } from "./RegistryPipeline";
 
 export function AdminShell() {
   const [state, setState] = useState<"loading" | "unauthenticated" | "unauthorized" | "authorized">(
@@ -65,6 +66,7 @@ export function AdminShell() {
           <p className="uv-lead">Research a business and create its private, personalized demo.</p>
         </div>
         <AdminResearchTool embedded />
+        <RegistryPipeline />
       </main>
     </div>
   );
