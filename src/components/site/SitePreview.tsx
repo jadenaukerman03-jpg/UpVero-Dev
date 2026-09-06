@@ -25,9 +25,12 @@ import { VisualDirectionSite } from "./VisualDirectionSite";
 export function SitePreview({
   config,
   showDemoLaunchControls = false,
+  showVisualDirectionLayout = false,
 }: {
   config: SiteConfig;
   showDemoLaunchControls?: boolean;
+  /** Renders the selected direction's full layout without exposing launch controls. */
+  showVisualDirectionLayout?: boolean;
 }) {
   const themes = useMemo(() => getDemoThemes(config), [config]);
   const recommendedDirection = useMemo(() => getRecommendedVisualDirection(config), [config]);
@@ -58,6 +61,16 @@ export function SitePreview({
     if (savedFontId && fontOptions.some((font) => font.id === savedFontId)) setFontId(savedFontId);
   }, [showDemoLaunchControls, storageKey, directionStorageKey, fontStorageKey, themes]);
 
+  useEffect(() => {
+    if (!showVisualDirectionLayout || showDemoLaunchControls) return;
+    setDirectionId(config.design?.visualDirection ?? recommendedDirection);
+  }, [
+    config.design?.visualDirection,
+    recommendedDirection,
+    showDemoLaunchControls,
+    showVisualDirectionLayout,
+  ]);
+
   function selectTheme(nextThemeId: string) {
     setThemeId(nextThemeId);
     window.localStorage.setItem(storageKey, nextThemeId);
@@ -81,7 +94,8 @@ export function SitePreview({
     if (!isOptionUnlocked(nextTier, "color-theme", themeId)) selectTheme("original");
   }
 
-  const themeStyle = showDemoLaunchControls
+  const useVisualDirectionLayout = showDemoLaunchControls || showVisualDirectionLayout;
+  const themeStyle = useVisualDirectionLayout
     ? ({
         ...selectedTheme.variables,
         ...selectedDirection.variables,
@@ -100,7 +114,7 @@ export function SitePreview({
         className={`${showDemoLaunchControls ? `demo-direction-${selectedDirection.id} ` : ""}min-h-screen bg-bone font-sans text-ink antialiased`}
         style={themeStyle}
       >
-        {showDemoLaunchControls ? (
+        {useVisualDirectionLayout ? (
           <VisualDirectionSite direction={directionId} />
         ) : (
           <>

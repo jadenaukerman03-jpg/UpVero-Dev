@@ -255,6 +255,47 @@ export const getOwnedWebsite = createServerFn({ method: "POST" })
     return website;
   });
 
+/** Updates only a safe customer-editable design setting after RLS ownership checks. */
+export const updateOwnedWebsiteVisualDirection = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z
+      .object({
+        accessToken: accessTokenSchema,
+        websiteId: z.string().uuid(),
+        visualDirection: z.enum(["professional", "modern", "luxury", "friendly", "minimal"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { requireAuthenticatedCustomer } = await import("@/lib/supabase/server");
+    const { client, user } = await requireAuthenticatedCustomer(data.accessToken);
+    const { data: website, error: lookupError } = await client
+      .from("websites")
+      .select("id, site_config")
+      .eq("id", data.websiteId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    if (lookupError) serverError(lookupError, "load the website draft");
+    if (!website) authorizationFailure(404, "This website draft is unavailable.");
+
+    const config = siteConfigSchema.safeParse(website.site_config);
+    if (!config.success) throw new Error("This website draft has an invalid configuration.");
+    const nextConfig = {
+      ...config.data,
+      design: { ...config.data.design, visualDirection: data.visualDirection },
+    };
+    const { data: updatedWebsite, error: updateError } = await client
+      .from("websites")
+      .update({ site_config: nextConfig })
+      .eq("id", website.id)
+      .eq("owner_id", user.id)
+      .select("site_config")
+      .maybeSingle();
+    if (updateError) serverError(updateError, "update the visual direction");
+    if (!updatedWebsite) authorizationFailure(404, "This website draft is unavailable.");
+    return updatedWebsite;
+  });
+
 export const updateOwnedWebsiteStatus = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const parsed = z

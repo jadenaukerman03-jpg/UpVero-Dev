@@ -5,7 +5,11 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { createLead } from "@/data/leads";
 import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
-import { getOwnedWebsite, saveGeneratedWebsite } from "@/services/customer-data";
+import {
+  getOwnedWebsite,
+  saveGeneratedWebsite,
+  updateOwnedWebsiteVisualDirection,
+} from "@/services/customer-data";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { SitePreview } from "@/components/site/SitePreview";
 import type { SiteConfig } from "@/data/site";
@@ -25,7 +29,6 @@ type DraftFields = {
   email: string;
   website: string;
   description: string;
-  visualDirection: VisualStyle;
   primaryColor: string;
 };
 
@@ -38,9 +41,12 @@ const initialFields: DraftFields = {
   email: "",
   website: "",
   description: "",
-  visualDirection: "professional",
   primaryColor: "",
 };
+
+function wordCount(value: string) {
+  return value.trim() ? value.trim().split(/\s+/).length : 0;
+}
 
 function accountRedirect() {
   window.location.replace("/account?next=%2Fdraft");
@@ -55,10 +61,13 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [fields, setFields] = useState<DraftFields>(initialFields);
   const [preview, setPreview] = useState<SiteConfig>();
+  const [savedWebsiteId, setSavedWebsiteId] = useState(websiteId);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [updatingDirection, setUpdatingDirection] = useState(false);
   const getWebsite = useServerFn(getOwnedWebsite);
   const saveWebsite = useServerFn(saveGeneratedWebsite);
+  const updateVisualDirection = useServerFn(updateOwnedWebsiteVisualDirection);
 
   useEffect(() => {
     const client = createBrowserSupabaseClient();
@@ -105,7 +114,6 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
           phone: config.brand.phone,
           email: config.brand.email,
           description: config.about.body,
-          visualDirection: config.design?.visualDirection ?? "professional",
           primaryColor: config.design?.primaryColor ?? "",
         }));
       })
@@ -121,9 +129,37 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     setFields((current) => ({ ...current, [key]: value }));
   }
 
+  async function changeVisualDirection(visualDirection: VisualStyle) {
+    if (!preview || !savedWebsiteId || auth.status !== "authenticated" || updatingDirection) return;
+    const previousConfig = preview;
+    const nextConfig = {
+      ...preview,
+      design: { ...preview.design, visualDirection },
+    } satisfies SiteConfig;
+    setPreview(nextConfig);
+    setUpdatingDirection(true);
+    setNotice("");
+    try {
+      const updated = await updateVisualDirection({
+        data: { accessToken: auth.accessToken, websiteId: savedWebsiteId, visualDirection },
+      });
+      if (updated instanceof Response) throw new Error("Unable to update the visual direction.");
+      setPreview(updated.site_config as SiteConfig);
+    } catch (error) {
+      setPreview(previousConfig);
+      setNotice(error instanceof Error ? error.message : "Unable to update the visual direction.");
+    } finally {
+      setUpdatingDirection(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (auth.status !== "authenticated") return;
+    if (wordCount(fields.description) < 50) {
+      setNotice("Please add at least 50 words about the business or the website you want to create.");
+      return;
+    }
     setSaving(true);
     setNotice("");
     try {
@@ -142,8 +178,8 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       const config = {
         ...generateSiteConfigFromLead(lead),
         design: primaryColor
-          ? { visualDirection: fields.visualDirection, primaryColor }
-          : { visualDirection: fields.visualDirection },
+          ? { visualDirection: "professional", primaryColor }
+          : { visualDirection: "professional" },
       } satisfies SiteConfig;
       const saved = await saveWebsite({
         data: {
@@ -155,6 +191,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       });
       if (saved instanceof Response) throw new Error("Unable to save your website draft.");
       setPreview(config);
+      setSavedWebsiteId(saved.id);
       setNotice("Your private website draft is ready. It has not been published.");
       window.history.replaceState({}, "", `/draft?website=${saved.id}`);
     } catch (error) {
@@ -193,7 +230,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
         <p className="uv-eyebrow">Private website draft</p>
         <h1>{websiteId ? "Your website preview" : "Create your website draft"}</h1>
         <p className="uv-lead">
-          Tell us the essentials. We’ll create a private, editable demo for your Upvero account.
+          Start with what you know. You can add the remaining details later.
         </p>
         {!websiteId && (
           <form className="uv-auth-form uv-draft-form" onSubmit={submit}>
@@ -208,10 +245,9 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label>
-              Business category
+              Business category <span>Optional</span>
               <input
                 className="uv-input"
-                required
                 maxLength={160}
                 placeholder="e.g. Residential roofing"
                 value={fields.category}
@@ -219,27 +255,25 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label>
-              City
+              City <span>Optional</span>
               <input
                 className="uv-input"
-                required
                 maxLength={120}
                 value={fields.city}
                 onChange={(event) => update("city", event.target.value)}
               />
             </label>
             <label>
-              State
+              State <span>Optional</span>
               <input
                 className="uv-input"
-                required
                 maxLength={40}
                 value={fields.state}
                 onChange={(event) => update("state", event.target.value)}
               />
             </label>
             <label>
-              Phone number
+              Phone number <span>Optional</span>
               <input
                 className="uv-input"
                 type="tel"
@@ -249,7 +283,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label>
-              Email
+              Email <span>Optional</span>
               <input
                 className="uv-input"
                 type="email"
@@ -270,20 +304,6 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label>
-              Visual direction
-              <select
-                className="uv-input"
-                value={fields.visualDirection}
-                onChange={(event) => update("visualDirection", event.target.value as VisualStyle)}
-              >
-                {visualStyleOptions.map((style) => (
-                  <option key={style} value={style}>
-                    {style[0]!.toUpperCase() + style.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               Primary color <span>Optional, #RRGGBB</span>
               <input
                 className="uv-input"
@@ -294,14 +314,18 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label className="uv-draft-wide">
-              Short business description <span>Optional</span>
+              Business description <span>Required · at least 50 words</span>
               <textarea
                 className="uv-input"
                 rows={4}
+                required
                 maxLength={8000}
                 value={fields.description}
                 onChange={(event) => update("description", event.target.value)}
               />
+              <span className="uv-draft-word-count" aria-live="polite">
+                {wordCount(fields.description)} / 50 words
+              </span>
             </label>
             <button className="uv-button uv-button-primary uv-draft-wide" disabled={saving}>
               {saving ? (
@@ -324,7 +348,31 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       </main>
       {preview ? (
         <section className="uv-draft-preview">
-          <SitePreview config={preview} />
+          <div className="uv-draft-preview-toolbar">
+            <div>
+              <p className="uv-eyebrow">Visual direction</p>
+              <p>Try a different layout for your private preview.</p>
+            </div>
+            <div className="uv-draft-direction-options" role="radiogroup" aria-label="Visual direction">
+              {visualStyleOptions.map((style) => {
+                const selected = (preview.design?.visualDirection ?? "professional") === style;
+                return (
+                  <button
+                    key={style}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={updatingDirection}
+                    onClick={() => void changeVisualDirection(style)}
+                    className={selected ? "is-selected" : undefined}
+                  >
+                    {style}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <SitePreview config={preview} showVisualDirectionLayout />
         </section>
       ) : null}
     </div>
