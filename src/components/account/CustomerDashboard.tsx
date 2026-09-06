@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Globe2, LogOut, Plus, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, Globe2, LogOut, Plus, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -84,6 +84,9 @@ export function CustomerDashboard() {
         <div className="uv-container uv-header-inner">
           <BrandMark />
           <div className="uv-dashboard-actions">
+            <Link to="/" className="uv-button uv-button-ghost">
+              <ArrowLeft size={16} /> Main site
+            </Link>
             <span className="uv-user-email">{email ?? "Loading account…"}</span>
             <button type="button" className="uv-button uv-button-ghost" onClick={signOut}>
               <LogOut size={16} /> Sign out

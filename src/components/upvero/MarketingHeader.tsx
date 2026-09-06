@@ -15,20 +15,29 @@ const links = [
 
 export function MarketingHeader() {
   const [open, setOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const getAdminAccess = useServerFn(getCurrentAdminAccess);
 
   useEffect(() => {
     let active = true;
-    async function loadAdminAccess() {
-      const { data } = await createBrowserSupabaseClient().auth.getSession();
-      if (!data.session) return;
+    const client = createBrowserSupabaseClient();
+    async function syncSession() {
+      const { data } = await client.auth.getSession();
+      if (!active) return;
+      setIsAuthenticated(Boolean(data.session));
+      if (!data.session) {
+        setIsAdmin(false);
+        return;
+      }
       const access = await getAdminAccess({ data: { accessToken: data.session.access_token } });
       if (active) setIsAdmin(access.isAdmin);
     }
-    void loadAdminAccess();
+    void syncSession();
+    const { data: listener } = client.auth.onAuthStateChange(() => void syncSession());
     return () => {
       active = false;
+      listener.subscription.unsubscribe();
     };
   }, [getAdminAccess]);
 
@@ -49,9 +58,15 @@ export function MarketingHeader() {
           ) : null}
         </nav>
         <div className="uv-header-actions">
-          <Link to="/account" className="uv-button uv-button-ghost">
-            Sign in
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/dashboard" className="uv-button uv-button-ghost">
+              Your websites
+            </Link>
+          ) : (
+            <Link to="/account" className="uv-button uv-button-ghost">
+              Sign in
+            </Link>
+          )}
           <Link to="/contact" className="uv-button uv-button-primary">
             Get my preview
           </Link>
@@ -78,8 +93,12 @@ export function MarketingHeader() {
               Admin
             </Link>
           ) : null}
-          <Link to="/account" onClick={() => setOpen(false)} className="uv-nav-link">
-            Sign in
+          <Link
+            to={isAuthenticated ? "/dashboard" : "/account"}
+            onClick={() => setOpen(false)}
+            className="uv-nav-link"
+          >
+            {isAuthenticated ? "Your websites" : "Sign in"}
           </Link>
         </nav>
       ) : null}
