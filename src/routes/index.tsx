@@ -1,15 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  CalendarDays,
+  ArrowUpRight,
   Check,
   ChevronDown,
-  Gauge,
+  Globe2,
+  LayoutTemplate,
+  MessageCircle,
+  MousePointer2,
   ShieldCheck,
   Sparkles,
   Wrench,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 
 import { MarketingLayout } from "@/components/upvero/MarketingLayout";
@@ -31,22 +33,6 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const steps = [
-  [
-    "We learn your business",
-    "Tell us what you do, where you work, and what matters to your customers.",
-  ],
-  [
-    "We build a private preview",
-    "We create a mobile-first website draft using accurate business details.",
-  ],
-  ["You look it over", "Review your private preview and request changes before you ever pay."],
-  [
-    "We launch and maintain it",
-    "Hosting, security, updates, and normal edits stay handled for you.",
-  ],
-] as const;
-
 const faqs = [
   [
     "Do I really get a free preview?",
@@ -66,23 +52,16 @@ const faqs = [
   ],
 ] as const;
 
-const valueProps: Array<{ icon: LucideIcon; title: string; body: string }> = [
-  {
-    icon: Gauge,
-    title: "Live today",
-    body: "Your preview is ready before the first conversation. Once approved, your site can be ready to launch quickly.",
-  },
-  {
-    icon: Wrench,
-    title: "Nothing to manage",
-    body: "Hosting, security, updates, and content edits are handled without another dashboard to learn.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Honest by default",
-    body: "We use accurate information and do not invent reviews, awards, or credentials.",
-  },
-];
+const businessTypes = [
+  "Cleaning",
+  "Landscaping",
+  "Pressure washing",
+  "Contractors",
+  "Roofing",
+  "Auto detailing",
+  "Restaurants",
+  "Barbershops",
+] as const;
 
 function Index() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -90,131 +69,188 @@ function Index() {
 
   return (
     <MarketingLayout>
-      <section className="uv-hero">
-        <div className="uv-grid-backdrop" aria-hidden="true" />
-        <div className="uv-container uv-hero-content">
-          <p className="uv-pill">
-            <Sparkles size={14} /> Free personalized preview before you pay a cent
-          </p>
-          <h1>
-            Your business deserves a website that actually <span>brings in work</span>.
-          </h1>
-          <p className="uv-lead">
-            Upvero builds professional websites for local businesses — then hosts, secures, and
-            maintains them for one straightforward monthly plan. No technical homework.
-          </p>
-          <div className="uv-cta-row">
-            <Link to="/contact" className="uv-button uv-button-primary">
-              Get my free preview <ArrowRight size={16} />
-            </Link>
-            <Link to="/pricing" className="uv-button uv-button-secondary">
-              See pricing
-            </Link>
-          </div>
-          <div className="uv-trust-row">
-            {[
-              "Free preview before payment",
-              "No long-term contracts",
-              "Hosting and updates included",
-            ].map((item) => (
-              <span key={item}>
-                <Check size={16} /> {item}
+      <section className="uv-modern-hero">
+        <div className="uv-modern-hero-grid" aria-hidden="true" />
+        <div className="uv-container uv-modern-hero-content">
+          <div className="uv-modern-hero-copy">
+            <p className="uv-modern-kicker">
+              <Sparkles size={15} aria-hidden="true" /> Websites for local businesses
+            </p>
+            <h1>
+              Turn your <span>best work</span> into more of it.
+            </h1>
+            <p className="uv-modern-lead">
+              A professional website, a clear path to launch, and none of the technical work left on
+              your plate.
+            </p>
+            <div className="uv-modern-hero-actions">
+              <Link to="/draft" className="uv-button uv-button-primary">
+                Build my free preview <ArrowUpRight size={17} />
+              </Link>
+              <Link to="/pricing" className="uv-modern-text-action">
+                Explore plans <ArrowRight size={16} />
+              </Link>
+            </div>
+            <div className="uv-modern-reassurance" aria-label="Upvero commitments">
+              <span>
+                <Check size={15} aria-hidden="true" /> Preview before payment
               </span>
-            ))}
+              <span>
+                <Check size={15} aria-hidden="true" /> Hosting included
+              </span>
+              <span>
+                <Check size={15} aria-hidden="true" /> Built for every screen
+              </span>
+            </div>
+          </div>
+
+          <div className="uv-modern-preview" aria-label="Example Upvero website preview">
+            <div className="uv-modern-preview-bar">
+              <span className="uv-modern-preview-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>yourbusiness.com</span>
+              <ShieldCheck size={15} aria-label="Secure" />
+            </div>
+            <div className="uv-modern-preview-site">
+              <div className="uv-modern-preview-nav">
+                <strong>YOUR BUSINESS</strong>
+                <span aria-hidden="true">Menu</span>
+              </div>
+              <div className="uv-modern-preview-headline">
+                <p>Built to make a strong first impression.</p>
+                <h2>Make it easy to choose you.</h2>
+                <span>Get started</span>
+              </div>
+              <div className="uv-modern-preview-tiles">
+                <span>
+                  <Globe2 size={18} aria-hidden="true" /> Ready everywhere
+                </span>
+                <span>
+                  <MessageCircle size={18} aria-hidden="true" /> Easy to contact
+                </span>
+              </div>
+            </div>
+            <div className="uv-modern-preview-note">
+              <span className="uv-modern-live-dot" aria-hidden="true" /> Your preview starts
+              private.
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="uv-band">
-        <div className="uv-container uv-value-grid">
-          {valueProps.map(({ icon: FeatureIcon, title, body }) => (
-            <article key={title} className="uv-value-card">
-              <FeatureIcon size={21} />
-              <h2>{title}</h2>
-              <p>{body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="uv-section uv-container">
-        <h2>How it works</h2>
-        <p className="uv-section-intro">
-          Four simple steps from first contact to a site that is live, secure, and looked after.
-        </p>
-        <ol className="uv-steps">
-          {steps.map(([title, body], index) => (
-            <li key={title}>
-              <strong>{String(index + 1).padStart(2, "0")}</strong>
-              <h3>{title}</h3>
-              <p>{body}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="uv-band">
-        <div className="uv-container uv-process">
+      <section className="uv-modern-strip">
+        <div className="uv-container uv-modern-strip-content">
+          <p>One clear system for a better online first impression.</p>
           <div>
-            <CalendarDays size={30} />
-            <h2>What happens after you sign up</h2>
-            <p>Clear milestones, a private website draft, and a secure path to launch.</p>
+            <span>Build</span>
+            <i aria-hidden="true" />
+            <span>Review</span>
+            <i aria-hidden="true" />
+            <span>Launch</span>
+            <i aria-hidden="true" />
+            <span>Maintain</span>
           </div>
-          <ol>
+        </div>
+      </section>
+
+      <section className="uv-modern-section uv-container">
+        <div className="uv-modern-section-heading">
+          <p className="uv-eyebrow">Why Upvero</p>
+          <h2>Everything customers need to feel confident calling you.</h2>
+          <p>
+            Clear information, a polished presentation, and a site that stays useful after launch.
+          </p>
+        </div>
+        <div className="uv-modern-bento">
+          <article className="uv-modern-bento-primary">
+            <div className="uv-modern-bento-icon">
+              <LayoutTemplate size={23} aria-hidden="true" />
+            </div>
+            <p className="uv-eyebrow">Designed to convert</p>
+            <h3>Built around the moment someone decides to reach out.</h3>
+            <p>
+              The layout, content, and calls-to-action help visitors understand what you do and how
+              to get started.
+            </p>
+          </article>
+          <article>
+            <div className="uv-modern-bento-icon">
+              <MousePointer2 size={21} aria-hidden="true" />
+            </div>
+            <h3>Review first</h3>
+            <p>See a private preview before you choose a plan or enter payment details.</p>
+          </article>
+          <article>
+            <div className="uv-modern-bento-icon">
+              <Wrench size={21} aria-hidden="true" />
+            </div>
+            <h3>Stay focused</h3>
+            <p>Hosting, updates, security, and normal edits stay handled in one place.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="uv-modern-process-section">
+        <div className="uv-container">
+          <div className="uv-modern-process-heading">
+            <div>
+              <p className="uv-eyebrow">A simpler way to launch</p>
+              <h2>From idea to online in four clear moves.</h2>
+            </div>
+            <Link to="/draft" className="uv-modern-text-action">
+              Start your preview <ArrowRight size={16} />
+            </Link>
+          </div>
+          <ol className="uv-modern-process">
             {[
-              "Choose a plan",
-              "Save your website draft",
-              "Complete secure checkout",
-              "Launch when ready",
-            ].map((item, index) => (
-              <li key={item}>
-                <span>{index + 1}</span>
-                <div>
-                  <h3>{item}</h3>
-                  <p>Each step stays connected to your authenticated Upvero account.</p>
-                </div>
+              ["01", "Tell us the essentials", "Share your business, location, and services."],
+              ["02", "Review your preview", "Look over a private website draft before deciding."],
+              ["03", "Choose your plan", "Pick the level of access that fits your business."],
+              [
+                "04",
+                "Go live with confidence",
+                "Launch when you are ready, with ongoing care included.",
+              ],
+            ].map(([number, title, body]) => (
+              <li key={number}>
+                <span>{number}</span>
+                <h3>{title}</h3>
+                <p>{body}</p>
               </li>
             ))}
           </ol>
         </div>
       </section>
 
-      <section className="uv-section uv-container">
-        <h2>Built for local trades and services</h2>
-        <p className="uv-section-intro">
-          The content, layout, and calls-to-action are tuned for customers ready to call, book, or
-          visit.
-        </p>
-        <div className="uv-chip-row">
-          {[
-            "Cleaning",
-            "Landscaping",
-            "Pressure washing",
-            "Contractors",
-            "Roofing",
-            "Auto detailing",
-            "Restaurants",
-            "Barbershops",
-            "Salons",
-            "Moving companies",
-          ].map((industry) => (
+      <section className="uv-modern-section uv-container uv-modern-fit-section">
+        <div className="uv-modern-fit-copy">
+          <p className="uv-eyebrow">Made for local work</p>
+          <h2>Your business is personal. Your website should feel that way too.</h2>
+          <p>
+            Upvero gives local service businesses a focused, professional online presence without
+            turning website management into another job.
+          </p>
+          <Link to="/draft" className="uv-button uv-button-secondary">
+            See your website preview <ArrowUpRight size={16} />
+          </Link>
+        </div>
+        <div className="uv-modern-industry-cloud" aria-label="Businesses Upvero supports">
+          {businessTypes.map((industry) => (
             <span key={industry}>{industry}</span>
           ))}
         </div>
       </section>
 
-      <section className="uv-section uv-container">
-        <div className="uv-section-heading">
+      <section className="uv-modern-pricing uv-container">
+        <div className="uv-modern-pricing-heading">
           <div>
-            <h2>Simple monthly pricing</h2>
-            <p>
-              One plan covers the build, hosting, and upkeep. No surprise charges for SSL,
-              bandwidth, backups, or normal edits.
-            </p>
+            <p className="uv-eyebrow">Straightforward pricing</p>
+            <h2>Choose the control you need. Keep the help you want.</h2>
           </div>
-          <Link to="/pricing" className="uv-text-link">
-            Compare plans <ArrowRight size={16} />
-          </Link>
+          <p>Every plan begins with a private website preview and a secure path to launch.</p>
         </div>
         <div
           className={
@@ -238,10 +274,13 @@ function Index() {
         </div>
       </section>
 
-      <section className="uv-band">
-        <div className="uv-container uv-faq uv-home-faq">
-          <h2>Questions we hear a lot</h2>
-          <p>Straight answers about previews, pricing, ownership, and launch.</p>
+      <section className="uv-modern-faq-section">
+        <div className="uv-container uv-faq uv-home-faq uv-modern-faq">
+          <div className="uv-modern-faq-intro">
+            <p className="uv-eyebrow">Good questions</p>
+            <h2>Everything you need to know before you begin.</h2>
+            <p>Clear answers, no pressure, and a preview before payment.</p>
+          </div>
           <div>
             {faqs.map(([question, answer], index) => {
               const isOpen = openFaq === index;
@@ -265,14 +304,16 @@ function Index() {
         </div>
       </section>
 
-      <section className="uv-section uv-container">
-        <Link to="/draft" className="uv-final-cta uv-clickable-card">
-          <h2>See your website before you decide.</h2>
-          <p>
-            Tell us about your business and we’ll build a personalized preview. No obligation and no
-            card required.
-          </p>
-          <span className="uv-button uv-button-primary">Request my preview</span>
+      <section className="uv-modern-final-section uv-container">
+        <Link to="/draft" className="uv-modern-final-cta uv-clickable-card">
+          <span className="uv-modern-final-orbit uv-modern-final-orbit-one" aria-hidden="true" />
+          <span className="uv-modern-final-orbit uv-modern-final-orbit-two" aria-hidden="true" />
+          <p className="uv-eyebrow">Your first step is free</p>
+          <h2>See what your next website could look like.</h2>
+          <p>Tell us about your business and start your private preview. No card required.</p>
+          <span className="uv-button uv-button-primary">
+            Build my free preview <ArrowUpRight size={17} />
+          </span>
         </Link>
       </section>
     </MarketingLayout>
