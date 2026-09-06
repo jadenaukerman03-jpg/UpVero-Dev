@@ -255,6 +255,42 @@ export const getOwnedWebsite = createServerFn({ method: "POST" })
     return website;
   });
 
+/** Deletes an unpublished draft only after customer RLS confirms ownership. */
+export const deleteOwnedWebsiteDraft = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({ accessToken: accessTokenSchema, websiteId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { requireAuthenticatedCustomer, createSupabaseAdminClient } = await import(
+      "@/lib/supabase/server"
+    );
+    const { client, user } = await requireAuthenticatedCustomer(data.accessToken);
+    const { data: draft, error: lookupError } = await client
+      .from("websites")
+      .select("id")
+      .eq("id", data.websiteId)
+      .eq("owner_id", user.id)
+      .eq("status", "draft")
+      .maybeSingle();
+    if (lookupError) serverError(lookupError, "verify the website draft");
+    if (!draft) authorizationFailure(404, "This website draft is unavailable.");
+
+    // The database revokes direct customer DELETE access. This server-side
+    // delete occurs only after the scoped customer client has proved ownership
+    // and that the record is still an unpublished draft.
+    const { data: deletedDraft, error: deleteError } = await createSupabaseAdminClient()
+      .from("websites")
+      .delete()
+      .eq("id", draft.id)
+      .eq("owner_id", user.id)
+      .eq("status", "draft")
+      .select("id")
+      .maybeSingle();
+    if (deleteError) serverError(deleteError, "delete the website draft");
+    if (!deletedDraft) authorizationFailure(404, "This website draft is unavailable.");
+    return deletedDraft;
+  });
+
 /** Updates only a safe customer-editable design setting after RLS ownership checks. */
 export const updateOwnedWebsiteVisualDirection = createServerFn({ method: "POST" })
   .validator((data: unknown) =>

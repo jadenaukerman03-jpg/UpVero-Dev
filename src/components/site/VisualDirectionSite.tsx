@@ -12,14 +12,18 @@ import { Testimonials } from "./Testimonials";
 
 type VariantProps = { direction: DemoVisualDirection };
 
-function Brand() {
+function Brand({ light = false }: { light?: boolean }) {
   const { brand } = useSiteConfig();
   return (
     <a href="#top" className="flex items-center gap-2.5">
-      <span className="grid size-9 place-items-center rounded-md bg-ink font-display text-sm font-semibold text-bone">
+      <span
+        className={`grid size-9 place-items-center rounded-md font-display text-sm font-semibold ${
+          light ? "bg-bone text-ink" : "bg-ink text-bone"
+        }`}
+      >
         {brand.shortName}
       </span>
-      <span className="font-display text-lg font-semibold tracking-tight text-ink">
+      <span className={`font-display text-lg font-semibold tracking-tight ${light ? "text-bone" : "text-ink"}`}>
         {brand.name}
       </span>
     </a>
@@ -79,15 +83,7 @@ function VariantHeader({ direction }: VariantProps) {
       <div
         className={`mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-10 ${direction === "luxury" ? "sm:py-7" : ""}`}
       >
-        <div
-          className={
-            light
-              ? "[&_*]:text-bone [&_span:first-child]:bg-bone [&_span:first-child]:text-ink"
-              : ""
-          }
-        >
-          <Brand />
-        </div>
+        <Brand light={light} />
         <nav
           className={`hidden items-center gap-7 text-sm md:flex ${light ? "text-bone/75" : "text-ink/70"}`}
         >

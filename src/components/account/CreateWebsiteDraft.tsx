@@ -44,10 +44,6 @@ const initialFields: DraftFields = {
   primaryColor: "",
 };
 
-function wordCount(value: string) {
-  return value.trim() ? value.trim().split(/\s+/).length : 0;
-}
-
 function accountRedirect() {
   window.location.replace("/account?next=%2Fdraft");
 }
@@ -156,10 +152,6 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (auth.status !== "authenticated") return;
-    if (wordCount(fields.description) < 50) {
-      setNotice("Please add at least 50 words about the business or the website you want to create.");
-      return;
-    }
     setSaving(true);
     setNotice("");
     try {
@@ -314,18 +306,16 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label className="uv-draft-wide">
-              Business description <span>Required · at least 50 words</span>
+              Business summary <span>Required</span>
               <textarea
                 className="uv-input"
                 rows={4}
                 required
                 maxLength={8000}
+                placeholder="Tell us what your business sells or does to make money, and what you want your website to look and feel like."
                 value={fields.description}
                 onChange={(event) => update("description", event.target.value)}
               />
-              <span className="uv-draft-word-count" aria-live="polite">
-                {wordCount(fields.description)} / 50 words
-              </span>
             </label>
             <button className="uv-button uv-button-primary uv-draft-wide" disabled={saving}>
               {saving ? (

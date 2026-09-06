@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Globe2, LogOut, Plus, ShieldCheck } from "lucide-react";
+import { Globe2, LogOut, Plus, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 
 import { BrandMark } from "@/components/upvero/BrandMark";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { listOwnedWebsites } from "@/services/customer-data";
+import { deleteOwnedWebsiteDraft, listOwnedWebsites } from "@/services/customer-data";
 
 type Website = {
   id: string;
@@ -20,7 +20,9 @@ export function CustomerDashboard() {
   const [websites, setWebsites] = useState<Website[]>([]);
   const [email, setEmail] = useState<string>();
   const [notice, setNotice] = useState("");
+  const [deletingWebsiteId, setDeletingWebsiteId] = useState<string>();
   const loadWebsites = useServerFn(listOwnedWebsites);
+  const deleteDraft = useServerFn(deleteOwnedWebsiteDraft);
 
   useEffect(() => {
     let active = true;
@@ -48,6 +50,32 @@ export function CustomerDashboard() {
   async function signOut() {
     await createBrowserSupabaseClient().auth.signOut();
     window.location.assign("/");
+  }
+
+  async function removeDraft(website: Website) {
+    if (website.status !== "draft" || deletingWebsiteId) return;
+    if (!window.confirm(`Delete ${website.name}? This private draft cannot be recovered.`)) return;
+
+    const { data } = await createBrowserSupabaseClient().auth.getSession();
+    if (!data.session) {
+      window.location.assign("/account");
+      return;
+    }
+
+    setDeletingWebsiteId(website.id);
+    setNotice("");
+    try {
+      const deleted = await deleteDraft({
+        data: { accessToken: data.session.access_token, websiteId: website.id },
+      });
+      if (deleted instanceof Response) throw new Error("Unable to delete this website draft.");
+      setWebsites((current) => current.filter((entry) => entry.id !== website.id));
+      setNotice("Your private website draft was deleted.");
+    } catch {
+      setNotice("This website draft could not be deleted. Please try again.");
+    } finally {
+      setDeletingWebsiteId(undefined);
+    }
   }
 
   return (
@@ -85,7 +113,22 @@ export function CustomerDashboard() {
         <section className="uv-website-grid" aria-label="Your saved websites">
           {websites.map((website) => (
             <article key={website.id} className="uv-website-card">
-              <Globe2 size={20} aria-hidden="true" />
+              {website.status === "draft" ? (
+                <button
+                  type="button"
+                  className="uv-draft-delete"
+                  aria-label={`Delete ${website.name} draft`}
+                  disabled={deletingWebsiteId === website.id}
+                  onClick={() => void removeDraft(website)}
+                >
+                  <X size={15} aria-hidden="true" />
+                </button>
+              ) : null}
+              <Globe2
+                size={20}
+                aria-hidden="true"
+                className={website.status === "draft" ? "uv-website-card-icon-with-delete" : undefined}
+              />
               <p className="uv-status">{website.status}</p>
               <h2>{website.name}</h2>
               <p>

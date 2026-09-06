@@ -1115,6 +1115,47 @@
   padding: 1.5rem;
 }
 
+.uv-website-card {
+  position: relative;
+}
+
+.uv-draft-delete {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border: 1px solid var(--uv-border);
+  border-radius: 999px;
+  background: var(--uv-card);
+  color: var(--uv-muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.uv-draft-delete:hover:not(:disabled),
+.uv-draft-delete:focus-visible {
+  border-color: color-mix(in srgb, var(--uv-primary) 50%, var(--uv-border));
+  background: color-mix(in srgb, var(--uv-primary) 10%, var(--uv-card));
+  color: var(--uv-ink);
+  outline: none;
+}
+
+.uv-draft-delete:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--uv-primary) 30%, transparent);
+}
+
+.uv-draft-delete:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.uv-website-card-icon-with-delete {
+  margin-top: 2.1rem;
+}
+
 .uv-website-card > svg,
 .uv-empty-card > svg {
   color: var(--uv-primary);
@@ -1245,12 +1286,6 @@
 
 .uv-draft-wide {
   grid-column: 1 / -1;
-}
-
-.uv-draft-word-count {
-  color: var(--uv-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
 }
 
 .uv-draft-preview {
