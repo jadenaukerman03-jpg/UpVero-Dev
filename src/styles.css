@@ -19,8 +19,8 @@
  */
 
 @theme inline {
-  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --color-bone: var(--bone);
   --color-sand: var(--sand);
   --color-ink: var(--ink);
@@ -216,7 +216,7 @@
   min-height: 100vh;
   background: var(--uv-bg);
   color: var(--uv-ink);
-  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 .uv-app *,
@@ -229,7 +229,7 @@
 .uv-app h3,
 .uv-center-state h1 {
   color: var(--uv-ink);
-  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.04em;
 }
 
@@ -258,25 +258,29 @@
 .uv-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.42rem;
   color: var(--uv-ink);
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: -0.06em;
   text-decoration: none;
 }
 
 .uv-brand-mark {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 0.62rem;
-  background: var(--uv-gradient);
-  color: #fff;
-  font-size: 0.95rem;
-  letter-spacing: -0.1em;
+  display: block;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: none;
+}
+
+.uv-brand-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.uv-brand-wordmark {
+  letter-spacing: -0.075em;
 }
 
 .uv-nav,
@@ -556,7 +560,7 @@
 
 .uv-steps strong {
   color: color-mix(in srgb, var(--uv-primary) 60%, transparent);
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 1.8rem;
 }
 
@@ -663,7 +667,11 @@
 }
 
 .uv-plan-card-interactive {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
   min-width: 0;
+  padding-bottom: 1.7rem;
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -695,7 +703,7 @@
 .uv-plan-card-trigger {
   display: flex;
   width: 100%;
-  min-height: 100%;
+  min-height: 0;
   flex-direction: column;
   border: 0;
   background: transparent;
@@ -752,7 +760,7 @@
 .uv-plan-price {
   margin: 1.5rem 0 0;
   color: var(--uv-ink);
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 1.55rem;
   font-weight: 700;
 }
@@ -856,7 +864,7 @@
 
 .uv-plan-go-live {
   width: calc(100% - 3.4rem);
-  margin: 0 1.7rem 1.7rem;
+  margin: auto 1.7rem 0;
   cursor: pointer;
 }
 
@@ -1330,13 +1338,13 @@
     padding-bottom: 1.2rem;
   }
 
+  .uv-plan-card-interactive.is-condensed {
+    padding-bottom: 1.2rem;
+  }
+
   .uv-plan-card-interactive.is-condensed .uv-plan-note,
   .uv-plan-card-interactive.is-condensed .uv-plan-feature-summary {
     display: none;
-  }
-
-  .uv-plan-card-interactive.is-condensed .uv-plan-go-live {
-    margin-bottom: 1.2rem;
   }
 }
 
