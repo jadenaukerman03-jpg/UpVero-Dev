@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2, Mail, Phone } from "lucide-react";
+import { useState, type FormEvent } from "react";
 
 import { MarketingLayout } from "@/components/upvero/MarketingLayout";
 
@@ -9,6 +10,22 @@ export const Route = createFileRoute("/contact")({
 });
 
 function ContactPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+
+  function sendEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const subject = `Upvero question from ${name.trim() || "a visitor"}`;
+    const body = [
+      `Name: ${name.trim() || "Not provided"}`,
+      `Email: ${email.trim() || "Not provided"}`,
+      "",
+      message.trim(),
+    ].join("\n");
+    window.location.href = `mailto:example@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
   return (
     <MarketingLayout>
       <section className="uv-contact uv-container">
@@ -44,6 +61,50 @@ function ContactPage() {
             Already signed in? Open your dashboard →
           </Link>
         </aside>
+      </section>
+      <section className="uv-section uv-container">
+        <div className="uv-contact-message-card">
+          <div>
+            <p className="uv-eyebrow">Questions for Upvero?</p>
+            <h2>Send us a message.</h2>
+            <p>
+              Tell us what you need help with. Submitting this form opens an email addressed to
+              our temporary contact inbox.
+            </p>
+            <a className="uv-text-link" href="mailto:example@gmail.com">
+              example@gmail.com
+            </a>
+          </div>
+          <form className="uv-contact-message-form" onSubmit={sendEmail}>
+            <label>
+              Your name
+              <input className="uv-input" value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <label>
+              Your email
+              <input
+                className="uv-input"
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <label>
+              How can we help?
+              <textarea
+                className="uv-input"
+                rows={5}
+                required
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+              />
+            </label>
+            <button type="submit" className="uv-button uv-button-primary">
+              <Mail size={16} /> Email Upvero
+            </button>
+          </form>
+        </div>
       </section>
     </MarketingLayout>
   );

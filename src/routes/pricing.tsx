@@ -62,28 +62,34 @@ function PricingPage() {
           ))}
         </div>
       </section>
-      <section className="uv-section uv-container uv-faq">
-        <h2>Common questions</h2>
-        <div>
-          {questions.map(([question, answer], index) => {
-            const isOpen = openFaq === index;
-            return (
-              <article key={question} className={`uv-faq-item ${isOpen ? "is-open" : ""}`}>
-                <button
-                  type="button"
-                  onClick={() => setOpenFaq((current) => (current === index ? null : index))}
-                  aria-expanded={isOpen}
-                  aria-controls={`pricing-faq-${index}`}
-                >
-                  <span>{question}</span>
-                  <ChevronDown className={isOpen ? "uv-chevron-open" : undefined} aria-hidden="true" />
-                </button>
-                <div id={`pricing-faq-${index}`} className="uv-faq-answer">
-                  <p>{answer}</p>
-                </div>
-              </article>
-            );
-          })}
+      <section className="uv-modern-faq-section">
+        <div className="uv-container uv-faq uv-home-faq uv-modern-faq">
+          <div className="uv-modern-faq-intro">
+            <p className="uv-eyebrow">Good questions</p>
+            <h2>Everything you need to know before you choose a plan.</h2>
+            <p>Clear answers, no pressure, and a private preview before payment.</p>
+          </div>
+          <div>
+            {questions.map(([question, answer], index) => {
+              const isOpen = openFaq === index;
+              return (
+                <article key={question} className={isOpen ? "uv-faq-item is-open" : "uv-faq-item"}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq((current) => (current === index ? null : index))}
+                    aria-expanded={isOpen}
+                    aria-controls={`pricing-faq-${index}`}
+                  >
+                    {question}
+                    <ChevronDown size={18} className={isOpen ? "uv-chevron-open" : ""} aria-hidden="true" />
+                  </button>
+                  <div id={`pricing-faq-${index}`} className="uv-faq-answer" aria-hidden={!isOpen}>
+                    <p>{answer}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </section>
     </MarketingLayout>
