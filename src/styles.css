@@ -204,7 +204,7 @@
  * customer-site templates keep their existing design tokens and layout. */
 .uv-app,
 .uv-center-state {
-  --uv-bg: #fbfaf7;
+  --uv-bg: #f7f4ee;
   --uv-surface: #f3f0ea;
   --uv-card: #ffffff;
   --uv-ink: #1e252b;
@@ -262,7 +262,9 @@
   color: var(--uv-ink);
   font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   font-size: 1.2rem;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.075em;
+  line-height: 0.94;
   text-decoration: none;
 }
 
@@ -277,10 +279,6 @@
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.uv-brand-wordmark {
-  letter-spacing: -0.075em;
 }
 
 .uv-nav,
