@@ -306,6 +306,13 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
         : { review_status: "demo_queued", demo_requested_at: new Date().toISOString() };
     const { error } = await client.from("registry_candidates").update(update).in("id", ids);
     if (error) throw new Error("Unable to queue the selected businesses.");
+    const { error: jobError } = await client.from("registry_processing_jobs").insert({
+      registry_id: registry.id,
+      created_by: user.id,
+      job_type: data.action === "research" ? "research" : "demo_generation",
+      payload: { candidateIds: ids },
+    });
+    if (jobError) throw new Error("Unable to create the processing job.");
     return { queued: ids.length };
   });
 
@@ -319,9 +326,30 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { user } = await administrator(data.accessToken);
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: claimed, error: claimError } = await client.rpc("claim_next_registry_job", {
+      p_owner_id: user.id,
+      p_job_type: "research",
+      p_lock_seconds: 600,
+    });
+    if (claimError) throw new Error("Unable to claim a research job.");
+    const job = (Array.isArray(claimed) ? claimed[0] : claimed) as
+      | { id: string; payload: { candidateIds?: unknown } }
+      | null;
+    if (!job) return { completed: 0, failed: 0, processed: 0 };
+    const candidateIds = z.array(z.string().uuid()).min(1).max(50).safeParse(job.payload.candidateIds);
+    if (!candidateIds.success) {
+      await client
+        .from("registry_processing_jobs")
+        .update({ status: "failed", completed_at: new Date().toISOString(), last_error: "Invalid job payload." })
+        .eq("id", job.id);
+      throw new Error("The claimed research job has an invalid payload.");
+    }
+    const processingIds = candidateIds.data.slice(0, data.batchSize);
+    const remainingIds = candidateIds.data.slice(data.batchSize);
     const { data: queued, error } = await client
       .from("registry_candidates")
-      .select("id, registry_businesses!inner(name, city, state, website_url, registry_id)")
+      .select("id, research_attempts, registry_businesses!inner(name, city, state, website_url, registry_id)")
+      .in("id", processingIds)
       .eq("review_status", "research_queued")
       .eq("registry_businesses.registry_id", registry.id)
       .limit(data.batchSize);
@@ -341,6 +369,11 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
         .update({ review_status: "researching", last_research_error: null })
         .eq("id", candidate.id);
       try {
+        const { data: withinDailyBudget, error: budgetError } = await client.rpc(
+          "consume_admin_provider_daily_budget",
+          { p_owner_id: user.id, p_operation: "business_research", p_daily_limit: 50 },
+        );
+        if (budgetError || withinDailyBudget !== true) throw new Error("Daily research budget reached. Try again tomorrow.");
         const { data: withinQuota, error: quotaError } = await client.rpc(
           "consume_provider_operation_quota",
           { p_owner_id: user.id, p_operation: "business_research" },
@@ -360,7 +393,7 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
             review_status: "research_complete",
             research_result: result.profile,
             research_source_count: result.profile.sources.length,
-            research_attempts: 1,
+            research_attempts: candidate.research_attempts + 1,
             last_research_error: null,
           })
           .eq("id", candidate.id);
@@ -371,7 +404,7 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
           .from("registry_candidates")
           .update({
             review_status: "research_failed",
-            research_attempts: 1,
+            research_attempts: candidate.research_attempts + 1,
             last_research_error:
               researchError instanceof Error ? researchError.message.slice(0, 500) : "Research failed.",
           })
@@ -379,5 +412,34 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
         failed += 1;
       }
     }
+    const { error: finishError } = await client
+      .from("registry_processing_jobs")
+      .update({
+        status: remainingIds.length > 0 ? "queued" : "completed",
+        completed_at: remainingIds.length > 0 ? null : new Date().toISOString(),
+        locked_until: null,
+        payload: { candidateIds: remainingIds },
+        result: { completed, failed, processed: (queued ?? []).length, remaining: remainingIds.length },
+      })
+      .eq("id", job.id);
+    if (finishError) throw new Error("Unable to finalize the research job.");
     return { completed, failed, processed: (queued ?? []).length };
+  });
+
+export const listRegistryProcessingJobs = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    accessSchema.extend({ registryId: z.string().uuid(), limit: z.number().int().min(1).max(25).default(10) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: jobs, error } = await client
+      .from("registry_processing_jobs")
+      .select("id, job_type, status, attempts, last_error, result, created_at, completed_at")
+      .eq("registry_id", registry.id)
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (error) throw new Error("Unable to load processing jobs.");
+    return jobs ?? [];
   });

@@ -1187,6 +1187,23 @@
   line-height: 1.55;
 }
 
+.uv-admin-jobs {
+  display: grid;
+  gap: 0.4rem;
+  border-top: 1px solid var(--uv-border);
+  padding-top: 1rem;
+}
+
+.uv-admin-jobs h4,
+.uv-admin-jobs p {
+  margin: 0;
+}
+
+.uv-admin-jobs p {
+  color: var(--uv-muted);
+  font-size: 0.82rem;
+}
+
 .uv-admin-candidates ul {
   display: grid;
   gap: 0.15rem;
