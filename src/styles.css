@@ -1074,6 +1074,60 @@
   resize: vertical;
 }
 
+.uv-contact-message-success {
+  display: grid;
+  width: min(100%, 24rem);
+  justify-items: center;
+  gap: 0.65rem;
+  margin-inline: auto;
+  border: 1px solid var(--uv-border);
+  border-radius: 1rem;
+  background: var(--uv-card);
+  padding: 1.4rem 1.5rem;
+  color: var(--uv-ink);
+  text-align: center;
+  box-shadow: 0 12px 30px rgb(31 24 14 / 8%);
+  animation: uv-contact-message-in 180ms ease-out both;
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+}
+
+.uv-contact-message-success svg {
+  color: var(--uv-primary);
+}
+
+.uv-contact-message-success p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.uv-contact-message-success.is-fading {
+  opacity: 0;
+  transform: translateY(-0.3rem) scale(0.98);
+}
+
+.uv-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@keyframes uv-contact-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .uv-admin-registry {
   border-top: 1px solid var(--uv-border);
   background: var(--uv-surface);

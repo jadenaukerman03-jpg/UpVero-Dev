@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Mail, Phone } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { MarketingLayout } from "@/components/upvero/MarketingLayout";
+import { submitSupportContactMessage } from "@/services/support-contact-messages";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({ meta: [{ title: "Get your free website preview — Upvero" }] }),
@@ -13,19 +15,55 @@ function ContactPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [messageState, setMessageState] = useState<"form" | "success" | "fading">("form");
+  const [submissionError, setSubmissionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitMessage = useServerFn(submitSupportContactMessage);
   const supportEmail = import.meta.env["VITE_UPVERO_SUPPORT_EMAIL"]?.trim();
 
-  function sendEmail(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (messageState !== "success") return;
+
+    const fadeTimer = window.setTimeout(() => setMessageState("fading"), 2700);
+    const resetTimer = window.setTimeout(() => {
+      setMessageState("form");
+      setName("");
+      setEmail("");
+      setMessage("");
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(resetTimer);
+    };
+  }, [messageState]);
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supportEmail) return;
-    const subject = `Upvero question from ${name.trim() || "a visitor"}`;
-    const body = [
-      `Name: ${name.trim() || "Not provided"}`,
-      `Email: ${email.trim() || "Not provided"}`,
-      "",
-      message.trim(),
-    ].join("\n");
-    window.location.href = `mailto:${encodeURIComponent(supportEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setSubmissionError("");
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData(event.currentTarget);
+      const result = await submitMessage({
+        data: {
+          name,
+          email,
+          message,
+          website: String(formData.get("website") ?? ""),
+        },
+      });
+      if (result instanceof Response || !result.accepted) {
+        throw new Error("Unable to send your message.");
+      }
+      setMessageState("success");
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error ? error.message : "Unable to send your message. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -65,58 +103,74 @@ function ContactPage() {
         </aside>
       </section>
       <section className="uv-section uv-container">
-        <div className="uv-contact-message-card">
-          <div>
-            <p className="uv-eyebrow">Questions for Upvero?</p>
-            <h2>Send us a message.</h2>
-            <p>
-              Tell us what you need help with. Submitting this form opens a new message addressed to
-              the Upvero support inbox.
-            </p>
-            {supportEmail ? (
-              <a className="uv-text-link" href={`mailto:${supportEmail}`}>
-                {supportEmail}
-              </a>
-            ) : (
-              <p className="uv-notice" role="status">
-                The Upvero support inbox is being configured. Please check back shortly.
-              </p>
-            )}
+        {messageState === "form" ? (
+          <div className="uv-contact-message-card">
+            <div>
+              <p className="uv-eyebrow">Questions for Upvero?</p>
+              <h2>Send us a message.</h2>
+              <p>Tell us what you need help with and the Upvero team will receive it securely.</p>
+              {supportEmail ? (
+                <p className="uv-text-link">{supportEmail}</p>
+              ) : (
+                <p className="uv-notice" role="status">
+                  The Upvero support inbox is being configured. You can still send us a message
+                  here.
+                </p>
+              )}
+            </div>
+            <form className="uv-contact-message-form" onSubmit={sendMessage}>
+              <div className="uv-honeypot" aria-hidden="true">
+                <label htmlFor="support-website">Website</label>
+                <input id="support-website" name="website" tabIndex={-1} autoComplete="off" />
+              </div>
+              <label>
+                Your name
+                <input
+                  className="uv-input"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+              <label>
+                Your email
+                <input
+                  className="uv-input"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </label>
+              <label>
+                How can we help?
+                <textarea
+                  className="uv-input"
+                  rows={5}
+                  required
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                />
+              </label>
+              {submissionError ? (
+                <p className="uv-form-error" role="alert">
+                  {submissionError}
+                </p>
+              ) : null}
+              <button type="submit" className="uv-button uv-button-primary" disabled={isSubmitting}>
+                <Mail size={16} /> {isSubmitting ? "Sending…" : "Email Upvero"}
+              </button>
+            </form>
           </div>
-          <form className="uv-contact-message-form" onSubmit={sendEmail}>
-            <label>
-              Your name
-              <input
-                className="uv-input"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            <label>
-              Your email
-              <input
-                className="uv-input"
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
-            <label>
-              How can we help?
-              <textarea
-                className="uv-input"
-                rows={5}
-                required
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-              />
-            </label>
-            <button type="submit" className="uv-button uv-button-primary" disabled={!supportEmail}>
-              <Mail size={16} /> Email Upvero
-            </button>
-          </form>
-        </div>
+        ) : (
+          <div
+            className={`uv-contact-message-success${messageState === "fading" ? " is-fading" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
+            <CheckCircle2 size={28} aria-hidden="true" />
+            <p>Thanks for the message!</p>
+          </div>
+        )}
       </section>
     </MarketingLayout>
   );
