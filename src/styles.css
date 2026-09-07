@@ -1189,6 +1189,78 @@
   text-underline-offset: 0.15em;
 }
 
+.uv-admin-inline-notice {
+  margin-left: 0.5rem;
+  color: var(--uv-muted);
+  font-size: 0.8rem;
+}
+
+.uv-admin-outreach-draft {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--uv-border);
+  padding-top: 0.85rem;
+}
+
+.uv-admin-outreach-draft p {
+  margin: 0;
+}
+
+.uv-admin-outreach-draft label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--uv-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.uv-admin-outreach-draft textarea {
+  resize: vertical;
+}
+
+.uv-admin-outreach-tracking {
+  display: grid;
+  gap: 0.7rem;
+  border-top: 1px dashed var(--uv-border);
+  padding-top: 0.85rem;
+}
+
+.uv-admin-pipeline-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+
+.uv-admin-pipeline-summary > div {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--uv-border);
+  border-radius: 0.8rem;
+  background: var(--uv-card);
+  padding: 0.8rem;
+}
+
+.uv-admin-pipeline-summary span {
+  color: var(--uv-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.uv-admin-pipeline-summary strong {
+  color: var(--uv-primary-deep);
+  font-size: 1.4rem;
+}
+
+@media (max-width: 760px) {
+  .uv-admin-pipeline-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .uv-admin-candidates p,
 .uv-admin-candidates li,
 .uv-admin-queue-note {

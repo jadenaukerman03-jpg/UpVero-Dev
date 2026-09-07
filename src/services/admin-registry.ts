@@ -275,7 +275,7 @@ export const listRegistryCandidates = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: candidates, error } = await client
       .from("registry_candidates")
-      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
+      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at))), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
       .eq("registry_businesses.registry_id", registry.id)
       .order("preliminary_score", { referencedTable: "registry_businesses", ascending: false })
       .limit(data.limit);
@@ -569,4 +569,198 @@ export const getPrivateProspectDemo = createServerFn({ method: "GET" })
     const config = siteConfigSchema.safeParse(demo.site_config);
     if (!config.success) respond(404, "This private preview is unavailable.");
     return config.data;
+  });
+
+function previewOrigin() {
+  const configured = process.env["UPVERO_APP_URL"] || "https://upvero.org";
+  let url: URL;
+  try {
+    url = new URL(configured);
+  } catch {
+    throw new Error("The private preview URL is not configured correctly.");
+  }
+  if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
+    throw new Error("Private previews require an HTTPS application URL.");
+  }
+  return url.origin;
+}
+
+function outreachCopy(businessName: string, previewUrl: string) {
+  return {
+    subject: `A website preview for ${businessName}`,
+    body: `Hi ${businessName} team,\n\nI put together a private website preview for your business based on publicly available information. You can view it here:\n${previewUrl}\n\nThere is no obligation. If it is useful, I would be glad to hear what you would change or improve.\n\nBest,\nUpvero`,
+  };
+}
+
+const outreachDraftSchema = accessSchema.extend({
+  registryId: z.string().uuid(),
+  candidateId: z.string().uuid(),
+});
+
+/** Creates a copy-ready message only. This never sends email, SMS, or any outreach. */
+export const prepareProspectOutreachDraft = createServerFn({ method: "POST" })
+  .validator((data: unknown) => outreachDraftSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: candidate, error: candidateError } = await client
+      .from("registry_candidates")
+      .select("id, registry_businesses!inner(name, registry_id)")
+      .eq("id", data.candidateId)
+      .eq("review_status", "demo_complete")
+      .eq("registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (candidateError || !candidate) respond(404, "This completed demo is unavailable.");
+    const { data: demo, error: demoError } = await client
+      .from("prospect_demos")
+      .select("id, preview_token, prospect_outreach_drafts(id, recipient_email, subject, body, status)")
+      .eq("registry_candidate_id", candidate.id)
+      .eq("created_by", user.id)
+      .eq("status", "ready")
+      .maybeSingle();
+    if (demoError || !demo) respond(404, "This private demo is unavailable.");
+    const existing = (demo.prospect_outreach_drafts ?? [])[0];
+    if (existing) return existing;
+    const business = candidate.registry_businesses as unknown as { name: string };
+    const copy = outreachCopy(business.name, `${previewOrigin()}/demo/${demo.preview_token}`);
+    const { data: draft, error: insertError } = await client
+      .from("prospect_outreach_drafts")
+      .insert({ prospect_demo_id: demo.id, created_by: user.id, ...copy })
+      .select("id, recipient_email, subject, body, status")
+      .single();
+    if (insertError || !draft) throw new Error("Unable to prepare the outreach draft.");
+    return draft;
+  });
+
+export const saveProspectOutreachDraft = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    outreachDraftSchema
+      .extend({
+        draftId: z.string().uuid(),
+        recipientEmail: z.string().trim().email().max(320).optional(),
+        subject: z.string().trim().min(1).max(240),
+        body: z.string().trim().min(1).max(6_000),
+        status: z.enum(["draft", "ready_to_copy", "dismissed"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: draft, error: lookupError } = await client
+      .from("prospect_outreach_drafts")
+      .select("id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .eq("id", data.draftId)
+      .eq("created_by", user.id)
+      .eq("prospect_demos.created_by", user.id)
+      .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (lookupError || !draft) respond(404, "This outreach draft is unavailable.");
+    const { data: saved, error: updateError } = await client
+      .from("prospect_outreach_drafts")
+      .update({
+        recipient_email: data.recipientEmail || null,
+        subject: data.subject,
+        body: data.body,
+        status: data.status,
+      })
+      .eq("id", draft.id)
+      .eq("created_by", user.id)
+      .select("id, recipient_email, subject, body, status")
+      .single();
+    if (updateError || !saved) throw new Error("Unable to save the outreach draft.");
+    return saved;
+  });
+
+const outreachStageSchema = z.enum([
+  "ready",
+  "contacted",
+  "replied",
+  "meeting",
+  "won",
+  "lost",
+  "do_not_contact",
+]);
+
+/** Records a manual sales outcome only; no provider or delivery API is invoked. */
+export const saveProspectOutreachTracking = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    accessSchema
+      .extend({
+        registryId: z.string().uuid(),
+        draftId: z.string().uuid(),
+        stage: outreachStageSchema,
+        notes: z.string().trim().max(2_000),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: draft, error: lookupError } = await client
+      .from("prospect_outreach_drafts")
+      .select("id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .eq("id", data.draftId)
+      .eq("created_by", user.id)
+      .eq("prospect_demos.created_by", user.id)
+      .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (lookupError || !draft) respond(404, "This outreach draft is unavailable.");
+    const timestamp = new Date().toISOString();
+    const update = {
+      outreach_draft_id: draft.id,
+      created_by: user.id,
+      stage: data.stage,
+      notes: data.notes,
+      ...(data.stage === "contacted" ? { last_contacted_at: timestamp } : {}),
+      ...(data.stage === "replied" ? { replied_at: timestamp } : {}),
+    };
+    const { data: tracking, error: trackingError } = await client
+      .from("prospect_outreach_tracking")
+      .upsert(update, { onConflict: "outreach_draft_id" })
+      .select("id, stage, notes, last_contacted_at, replied_at")
+      .single();
+    if (trackingError || !tracking) throw new Error("Unable to save the outreach tracking update.");
+    return tracking;
+  });
+
+export const getRegistryPipelineSummary = createServerFn({ method: "POST" })
+  .validator((data: unknown) => accessSchema.extend({ registryId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const candidateStatuses = [
+      "review",
+      "research_queued",
+      "researching",
+      "research_complete",
+      "research_failed",
+      "demo_queued",
+      "demo_complete",
+      "dismissed",
+    ] as const;
+    const outreachStages = ["ready", "contacted", "replied", "meeting", "won", "lost", "do_not_contact"] as const;
+    const candidateCounts = await Promise.all(
+      candidateStatuses.map(async (status) => {
+        const { count, error } = await client
+          .from("registry_candidates")
+          .select("id, registry_businesses!inner(registry_id)", { count: "exact", head: true })
+          .eq("registry_businesses.registry_id", registry.id)
+          .eq("review_status", status);
+        if (error) throw new Error("Unable to summarize registry candidates.");
+        return [status, count ?? 0] as const;
+      }),
+    );
+    const outreachCounts = await Promise.all(
+      outreachStages.map(async (stage) => {
+        const { count, error } = await client
+          .from("prospect_outreach_tracking")
+          .select("id, prospect_outreach_drafts!inner(prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id))))", { count: "exact", head: true })
+          .eq("prospect_outreach_drafts.prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+          .eq("stage", stage);
+        if (error) throw new Error("Unable to summarize manual outreach.");
+        return [stage, count ?? 0] as const;
+      }),
+    );
+    return { candidates: Object.fromEntries(candidateCounts), outreach: Object.fromEntries(outreachCounts) };
   });
