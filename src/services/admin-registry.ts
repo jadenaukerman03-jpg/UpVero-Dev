@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { createLead } from "@/data/leads";
+import type { BusinessResearchProfile } from "@/data/research";
 import { siteConfigSchema } from "@/data/site";
 import { normalizeResearchProfile } from "@/services/business-research";
 
@@ -275,7 +276,7 @@ export const listRegistryCandidates = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: candidates, error } = await client
       .from("registry_candidates")
-      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at)), prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at)), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
+      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at)), prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
       .eq("registry_businesses.registry_id", registry.id)
       .order("preliminary_score", { referencedTable: "registry_businesses", ascending: false })
       .limit(data.limit);
@@ -694,6 +695,42 @@ function normalizeUsPhone(value: string | undefined) {
   respond(400, "Enter a valid U.S. phone number, including its area code.");
 }
 
+function normalizePublicResearchPhone(value: string | undefined) {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  if (value.trim().startsWith("+") && digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  return undefined;
+}
+
+function verifiedResearchPhone(profile: unknown) {
+  const phone = (profile as Partial<BusinessResearchProfile> | null)?.phone;
+  if (!phone || typeof phone.value !== "string" || !["high", "medium"].includes(phone.confidence)) {
+    return undefined;
+  }
+  const source = phone.sources.find((item) => !item.isMock && Boolean(item.sourceUrl));
+  const normalized = normalizePublicResearchPhone(phone.value);
+  if (!source || !normalized) return undefined;
+  return { phone: phone.value, normalized, confidence: phone.confidence, sourceUrl: source.sourceUrl! };
+}
+
+async function recordSmsEvent(
+  client: Awaited<ReturnType<typeof import("@/lib/supabase/server")["createSupabaseAdminClient"]>>,
+  draftId: string,
+  userId: string,
+  eventType: "draft_prepared" | "draft_saved" | "copied_for_manual_send" | "consent_recorded" | "marked_do_not_contact",
+  details: Record<string, string> = {},
+) {
+  const { error } = await client.from("prospect_sms_events").insert({
+    prospect_sms_draft_id: draftId,
+    created_by: userId,
+    event_type: eventType,
+    details,
+  });
+  if (error) throw new Error("Unable to record SMS activity.");
+}
+
 function manualSmsCopy(businessName: string, previewUrl: string) {
   return `Hi ${businessName} team — I’m with Upvero. I made a private website preview for your business based on publicly available information: ${previewUrl}\n\nThere is no obligation. Reply STOP if you do not want future texts.`;
 }
@@ -711,7 +748,7 @@ export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: candidate, error: candidateError } = await client
       .from("registry_candidates")
-      .select("id, registry_businesses!inner(name, registry_id)")
+      .select("id, research_result, registry_businesses!inner(name, registry_id)")
       .eq("id", data.candidateId)
       .eq("review_status", "demo_complete")
       .eq("registry_businesses.registry_id", registry.id)
@@ -720,7 +757,7 @@ export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
     const { data: demo, error: demoError } = await client
       .from("prospect_demos")
       .select(
-        "id, preview_token, prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at)",
+        "id, preview_token, prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at))",
       )
       .eq("registry_candidate_id", candidate.id)
       .eq("created_by", user.id)
@@ -730,16 +767,34 @@ export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
     const existing = (demo.prospect_sms_drafts ?? [])[0];
     if (existing) return existing;
     const business = candidate.registry_businesses as unknown as { name: string };
+    const evidence = verifiedResearchPhone((candidate as { research_result?: unknown }).research_result);
+    if (evidence) {
+      const { data: suppression, error: suppressionError } = await client
+        .from("prospect_sms_suppressions")
+        .select("recipient_phone_normalized")
+        .eq("recipient_phone_normalized", evidence.normalized)
+        .maybeSingle();
+      if (suppressionError) throw new Error("Unable to verify this research phone number.");
+      if (suppression) respond(409, "The verified public number is permanently marked do-not-contact.");
+    }
     const { data: draft, error: insertError } = await client
       .from("prospect_sms_drafts")
       .insert({
         prospect_demo_id: demo.id,
         created_by: user.id,
+        recipient_phone: evidence?.phone ?? null,
+        recipient_phone_normalized: evidence?.normalized ?? null,
+        phone_source_url: evidence?.sourceUrl ?? null,
+        phone_confidence: evidence?.confidence ?? "unverified",
         body: manualSmsCopy(business.name, `${previewOrigin()}/demo/${demo.preview_token}`),
       })
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at")
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
       .single();
     if (insertError || !draft) throw new Error("Unable to prepare the SMS draft.");
+    await recordSmsEvent(client, draft.id, user.id, "draft_prepared", {
+      phoneSource: evidence?.sourceUrl ?? "",
+      phoneConfidence: evidence?.confidence ?? "unverified",
+    });
     return draft;
   });
 
@@ -760,7 +815,7 @@ export const saveProspectSmsDraft = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error: lookupError } = await client
       .from("prospect_sms_drafts")
-      .select("id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select("id, recipient_phone_normalized, phone_source_url, phone_confidence, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
@@ -778,11 +833,13 @@ export const saveProspectSmsDraft = createServerFn({ method: "POST" })
       if (suppression) respond(409, "This phone number is permanently marked do-not-contact.");
     }
     const timestamp = new Date().toISOString();
+    const phoneChanged = normalizedPhone !== draft.recipient_phone_normalized;
     const { data: saved, error: updateError } = await client
       .from("prospect_sms_drafts")
       .update({
         recipient_phone: data.recipientPhone || null,
         recipient_phone_normalized: normalizedPhone,
+        ...(phoneChanged ? { phone_source_url: null, phone_confidence: "unverified" } : {}),
         body: data.body,
         stage: data.stage,
         notes: data.notes,
@@ -791,9 +848,10 @@ export const saveProspectSmsDraft = createServerFn({ method: "POST" })
       })
       .eq("id", draft.id)
       .eq("created_by", user.id)
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at")
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
       .single();
     if (updateError || !saved) throw new Error("Unable to save the SMS draft.");
+    await recordSmsEvent(client, saved.id, user.id, "draft_saved", { stage: data.stage });
     return saved;
   });
 
@@ -830,9 +888,65 @@ export const markProspectSmsDoNotContact = createServerFn({ method: "POST" })
       .update({ stage: "do_not_contact" })
       .eq("id", draft.id)
       .eq("created_by", user.id)
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at")
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
       .single();
     if (updateError || !saved) throw new Error("Unable to update this SMS draft.");
+    await recordSmsEvent(client, saved.id, user.id, "marked_do_not_contact", { reason: data.reason });
+    return saved;
+  });
+
+/** Records that an administrator manually copied a text. No telecom provider is called. */
+export const recordProspectSmsCopy = createServerFn({ method: "POST" })
+  .validator((data: unknown) => smsDraftSchema.extend({ draftId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: draft, error } = await client
+      .from("prospect_sms_drafts")
+      .select("id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .eq("id", data.draftId)
+      .eq("created_by", user.id)
+      .eq("prospect_demos.created_by", user.id)
+      .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (error || !draft) respond(404, "This SMS draft is unavailable.");
+    if (draft.stage === "do_not_contact") respond(409, "This phone number is marked do-not-contact.");
+    if (!draft.recipient_phone_normalized) respond(400, "Save a valid phone number before copying this text.");
+    await recordSmsEvent(client, draft.id, user.id, "copied_for_manual_send");
+    return { recorded: true };
+  });
+
+/** Records direct opt-in evidence only; this does not turn on sending or delivery. */
+export const recordProspectSmsConsent = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    smsDraftSchema
+      .extend({ draftId: z.string().uuid(), consentSource: z.string().trim().min(3).max(500) })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: draft, error } = await client
+      .from("prospect_sms_drafts")
+      .select("id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .eq("id", data.draftId)
+      .eq("created_by", user.id)
+      .eq("prospect_demos.created_by", user.id)
+      .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (error || !draft) respond(404, "This SMS draft is unavailable.");
+    if (draft.stage === "do_not_contact") respond(409, "This phone number is marked do-not-contact.");
+    if (!draft.recipient_phone_normalized) respond(400, "Save a valid phone number before recording consent.");
+    const timestamp = new Date().toISOString();
+    const { data: saved, error: updateError } = await client
+      .from("prospect_sms_drafts")
+      .update({ consent_status: "opted_in", consent_source: data.consentSource, consent_recorded_at: timestamp })
+      .eq("id", draft.id)
+      .eq("created_by", user.id)
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
+      .single();
+    if (updateError || !saved) throw new Error("Unable to record SMS consent.");
+    await recordSmsEvent(client, saved.id, user.id, "consent_recorded", { source: data.consentSource });
     return saved;
   });
 
@@ -916,5 +1030,27 @@ export const getRegistryPipelineSummary = createServerFn({ method: "POST" })
         return [stage, count ?? 0] as const;
       }),
     );
-    return { candidates: Object.fromEntries(candidateCounts), outreach: Object.fromEntries(outreachCounts) };
+    const smsCounts = await Promise.all(
+      outreachStages.map(async (stage) => {
+        const { count, error } = await client
+          .from("prospect_sms_drafts")
+          .select("id, prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id)))", { count: "exact", head: true })
+          .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+          .eq("stage", stage);
+        if (error) throw new Error("Unable to summarize manual SMS drafts.");
+        return [stage, count ?? 0] as const;
+      }),
+    );
+    const { count: copiedCount, error: copiedError } = await client
+      .from("prospect_sms_events")
+      .select("id, prospect_sms_drafts!inner(prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id))))", { count: "exact", head: true })
+      .eq("prospect_sms_drafts.prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .eq("event_type", "copied_for_manual_send");
+    if (copiedError) throw new Error("Unable to summarize manual text activity.");
+    return {
+      candidates: Object.fromEntries(candidateCounts),
+      outreach: Object.fromEntries(outreachCounts),
+      sms: Object.fromEntries(smsCounts),
+      smsCopied: copiedCount ?? 0,
+    };
   });
