@@ -19,8 +19,8 @@
  */
 
 @theme inline {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--preview-font-sans);
+  --font-display: var(--preview-font-display);
   --color-bone: var(--bone);
   --color-sand: var(--sand);
   --color-ink: var(--ink);
@@ -69,6 +69,8 @@
 }
 
 :root {
+  --preview-font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --preview-font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --radius: 0.625rem;
   --bone: oklch(0.982 0.004 95);
   --sand: oklch(0.922 0.014 90);
@@ -182,7 +184,7 @@
 
 .editor-settings-scroll {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--ink) 35%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--bone) 40%, transparent) transparent;
 }
 
 .editor-settings-scroll::-webkit-scrollbar {
@@ -196,8 +198,36 @@
 .editor-settings-scroll::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: color-mix(in oklch, var(--ink) 35%, transparent);
+  background: color-mix(in oklch, var(--bone) 40%, transparent);
   background-clip: padding-box;
+}
+
+.visual-direction {
+  isolation: isolate;
+  overflow: clip;
+}
+
+.visual-direction section {
+  position: relative;
+}
+
+.demo-modern-grid {
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--bone) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--bone) 5%, transparent) 1px, transparent 1px);
+  background-size: 3.5rem 3.5rem;
+  background-position: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visual-direction *,
+  .visual-direction *::before,
+  .visual-direction *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* Upvero public application shell. This is deliberately scoped so generated
@@ -1453,7 +1483,10 @@
   background: var(--uv-card);
   color: var(--uv-muted);
   cursor: pointer;
-  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
 }
 
 .uv-draft-delete:hover:not(:disabled),
@@ -1657,7 +1690,10 @@
   font-weight: 700;
   text-transform: capitalize;
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .uv-draft-direction-options button:hover:not(:disabled),

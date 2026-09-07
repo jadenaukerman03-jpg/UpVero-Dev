@@ -57,7 +57,7 @@ export type FontOption = {
   id: string;
   label: string;
   description: string;
-  variables: Record<"--font-sans" | "--font-display", string>;
+  variables: Record<"--preview-font-sans" | "--preview-font-display", string>;
 };
 
 /** Curated type systems only: each pair is chosen for a professional local-business site. */
@@ -67,8 +67,8 @@ export const fontOptions: FontOption[] = [
     label: "Recommended",
     description: "Fraunces headings with Archivo body copy",
     variables: {
-      "--font-display": '"Fraunces", ui-serif, Georgia, serif',
-      "--font-sans": '"Archivo", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Fraunces", ui-serif, Georgia, serif',
+      "--preview-font-sans": '"Archivo", ui-sans-serif, system-ui, sans-serif',
     },
   },
   {
@@ -76,8 +76,8 @@ export const fontOptions: FontOption[] = [
     label: "Modern / Clean",
     description: "Manrope headings with DM Sans body copy",
     variables: {
-      "--font-display": '"Manrope", ui-sans-serif, system-ui, sans-serif',
-      "--font-sans": '"DM Sans", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Manrope", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-sans": '"DM Sans", ui-sans-serif, system-ui, sans-serif',
     },
   },
   {
@@ -85,8 +85,8 @@ export const fontOptions: FontOption[] = [
     label: "Bold / Modern",
     description: "Space Grotesk with DM Sans",
     variables: {
-      "--font-display": '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
-      "--font-sans": '"DM Sans", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-sans": '"DM Sans", ui-sans-serif, system-ui, sans-serif',
     },
   },
   {
@@ -94,8 +94,8 @@ export const fontOptions: FontOption[] = [
     label: "Professional / Corporate",
     description: "Libre Baskerville with Source Sans 3",
     variables: {
-      "--font-display": '"Libre Baskerville", ui-serif, Georgia, serif',
-      "--font-sans": '"Source Sans 3", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Libre Baskerville", ui-serif, Georgia, serif',
+      "--preview-font-sans": '"Source Sans 3", ui-sans-serif, system-ui, sans-serif',
     },
   },
   {
@@ -103,8 +103,8 @@ export const fontOptions: FontOption[] = [
     label: "Luxury / Editorial",
     description: "Cormorant Garamond with DM Sans",
     variables: {
-      "--font-display": '"Cormorant Garamond", ui-serif, Georgia, serif',
-      "--font-sans": '"DM Sans", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Cormorant Garamond", ui-serif, Georgia, serif',
+      "--preview-font-sans": '"DM Sans", ui-sans-serif, system-ui, sans-serif',
     },
   },
   {
@@ -112,8 +112,8 @@ export const fontOptions: FontOption[] = [
     label: "Bold / Industrial",
     description: "Space Grotesk with IBM Plex Sans",
     variables: {
-      "--font-display": '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
-      "--font-sans": '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-sans": '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif',
     },
   },
   {
@@ -121,8 +121,8 @@ export const fontOptions: FontOption[] = [
     label: "Classic / Traditional",
     description: "Merriweather with Source Sans 3",
     variables: {
-      "--font-display": '"Merriweather", ui-serif, Georgia, serif',
-      "--font-sans": '"Source Sans 3", ui-sans-serif, system-ui, sans-serif',
+      "--preview-font-display": '"Merriweather", ui-serif, Georgia, serif',
+      "--preview-font-sans": '"Source Sans 3", ui-sans-serif, system-ui, sans-serif',
     },
   },
 ];

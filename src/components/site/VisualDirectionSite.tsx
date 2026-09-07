@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Menu, X } from "lucide-react";
+import { ArrowUpRight, Check, Menu, Sparkles, X } from "lucide-react";
 
 import { Reveal } from "@/components/Reveal";
 import type { DemoVisualDirection } from "@/data/demo-themes";
@@ -36,7 +36,7 @@ function Brand({ light = false }: { light?: boolean }) {
 }
 
 function SiteImage({ kind, className }: { kind: "hero" | "about"; className: string }) {
-  const { assets } = useSiteConfig();
+  const { assets, brand } = useSiteConfig();
   const image = assets[kind];
   if (image.src) {
     return (
@@ -49,7 +49,22 @@ function SiteImage({ kind, className }: { kind: "hero" | "about"; className: str
       />
     );
   }
-  return null;
+  return (
+    <div
+      className={`isolate overflow-hidden bg-ink ${className}`}
+      role="img"
+      aria-label={image.alt}
+    >
+      <div className="absolute -right-16 -top-16 size-64 rounded-full bg-clay/80 blur-2xl" />
+      <div className="absolute -bottom-20 -left-16 size-72 rounded-full bg-sand/20 blur-3xl" />
+      <div className="absolute inset-[12%] rounded-[inherit] border border-bone/15" />
+      <div className="absolute inset-0 grid place-items-center">
+        <span className="font-display text-[clamp(4rem,12vw,9rem)] font-semibold tracking-[-.08em] text-bone/90">
+          {brand.shortName}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function Actions({ inverse = false }: { inverse?: boolean }) {
@@ -58,9 +73,10 @@ function Actions({ inverse = false }: { inverse?: boolean }) {
     <div className="flex flex-wrap gap-3">
       <a
         href={hero.primaryCta.href}
-        className="rounded-full bg-clay px-6 py-3 text-sm font-semibold text-bone transition hover:bg-clay-dark"
+        className="group inline-flex items-center gap-2 rounded-full bg-clay px-6 py-3 text-sm font-semibold text-bone shadow-lg shadow-clay/20 transition duration-300 hover:-translate-y-0.5 hover:bg-clay-dark"
       >
         {hero.primaryCta.label}
+        <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
       </a>
       <a
         href={hero.secondaryCta.href}
@@ -76,17 +92,21 @@ function VariantHeader({ direction }: VariantProps) {
   const [open, setOpen] = useState(false);
   const { navigation, header } = useSiteConfig();
   const headerStyle: Record<DemoVisualDirection, string> = {
-    professional: "sticky top-0 border-b border-ink/10 bg-bone/92 backdrop-blur",
-    modern: "absolute inset-x-0 top-0 border-b border-white/10 bg-ink/45 text-bone backdrop-blur",
-    luxury: "absolute inset-x-0 top-0 bg-linear-to-b from-black/55 to-transparent text-bone",
-    friendly: "sticky top-0 border-b border-clay/15 bg-bone/95 shadow-sm",
-    minimal: "border-b border-ink/10 bg-bone",
+    professional:
+      "sticky top-0 border-b border-ink/8 bg-bone/88 shadow-[0_12px_40px_-28px_rgb(18_26_38/.45)] backdrop-blur-xl",
+    modern:
+      "absolute inset-x-0 top-0 border-b border-white/10 bg-ink/55 text-bone backdrop-blur-xl",
+    luxury:
+      "absolute inset-x-0 top-0 border-b border-bone/10 bg-linear-to-b from-black/70 to-transparent text-bone",
+    friendly:
+      "sticky top-0 border-b border-clay/12 bg-bone/90 shadow-[0_12px_40px_-30px_rgb(18_38_28/.5)] backdrop-blur-xl",
+    minimal: "border-b border-ink/12 bg-bone",
   };
   const light = direction === "modern" || direction === "luxury";
   return (
     <header className={`relative z-30 ${headerStyle[direction]}`}>
       <div
-        className={`mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-10 ${direction === "luxury" ? "sm:py-7" : ""}`}
+        className={`mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-10 ${direction === "luxury" ? "sm:py-6" : ""}`}
       >
         <Brand light={light} />
         <nav
@@ -101,7 +121,7 @@ function VariantHeader({ direction }: VariantProps) {
         <div className="flex items-center gap-3">
           <a
             href={header.primaryCta.href}
-            className={`hidden px-5 py-2.5 text-sm font-semibold sm:inline-block ${direction === "luxury" ? "border border-bone/60 text-bone" : direction === "minimal" ? "border-b border-ink pb-1" : light ? "rounded-full bg-bone text-ink" : "rounded-full bg-ink text-bone"}`}
+            className={`hidden px-5 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 sm:inline-block ${direction === "luxury" ? "border border-bone/50 bg-black/10 text-bone backdrop-blur" : direction === "minimal" ? "border-b border-ink px-1 pb-1" : light ? "rounded-full bg-bone text-ink shadow-lg" : "rounded-full bg-ink text-bone shadow-lg shadow-ink/15"}`}
           >
             {header.primaryCta.label}
           </a>
@@ -153,16 +173,19 @@ function VariantHero({ direction }: VariantProps) {
     return (
       <section
         id="top"
-        className="relative overflow-hidden bg-ink pb-14 pt-28 text-bone sm:pb-20 sm:pt-36"
+        className="demo-modern-grid relative overflow-hidden bg-ink pb-12 pt-28 text-bone sm:pb-16 sm:pt-36"
       >
-        <div className="absolute -right-24 top-24 size-[34rem] rounded-full bg-clay/25 blur-3xl" />
-        <div className={`relative mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 ${hasHeroImage ? "lg:grid-cols-[1.1fr_.9fr] lg:items-end" : "max-w-4xl"}`}>
+        <div className="absolute -right-24 top-10 size-[32rem] rounded-full bg-clay/30 blur-3xl" />
+        <div className="absolute -bottom-48 left-1/3 size-[28rem] rounded-full bg-bone/8 blur-3xl" />
+        <div
+          className={`relative mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 ${hasHeroImage ? "lg:grid-cols-[1.1fr_.9fr] lg:items-end" : "max-w-4xl"}`}
+        >
           <div>
             <Reveal>
               <p className="mb-5 text-sm font-semibold tracking-[.2em] text-clay uppercase">
                 {hero.eyebrow}
               </p>
-              <h1 className="max-w-[10ch] font-display text-5xl font-semibold leading-[.88] tracking-[-.06em] sm:text-7xl lg:text-8xl">
+              <h1 className="max-w-[11ch] font-display text-5xl font-semibold leading-[.9] tracking-[-.055em] sm:text-7xl lg:text-[5.5rem]">
                 {hero.headline}
               </h1>
             </Reveal>
@@ -189,20 +212,33 @@ function VariantHero({ direction }: VariantProps) {
             </Reveal>
           )}
         </div>
+        {hero.metrics.length > 0 && (
+          <div className="relative mx-auto mt-12 grid max-w-7xl grid-cols-1 gap-px overflow-hidden rounded-2xl border border-bone/10 bg-bone/10 sm:mt-16 sm:grid-cols-3 sm:mx-10 lg:mx-auto">
+            {hero.metrics.map((metric) => (
+              <div key={metric.label} className="bg-ink/80 px-6 py-5 backdrop-blur">
+                <strong className="font-display text-2xl text-bone">{metric.value}</strong>
+                <span className="ml-3 text-xs tracking-[.14em] text-bone/55 uppercase">
+                  {metric.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     );
   if (direction === "luxury")
     return (
       <section
         id="top"
-        className="relative flex min-h-[40rem] items-end overflow-hidden bg-ink text-bone"
+        className="relative flex min-h-[34rem] items-end overflow-hidden bg-ink text-bone sm:min-h-[38rem]"
       >
         <SiteImage kind="hero" className="absolute inset-0 size-full object-cover opacity-70" />
-        <div className="absolute inset-0 bg-linear-to-t from-black via-black/45 to-transparent" />
-        <div className="relative mx-auto w-full max-w-7xl px-6 pb-16 sm:px-10 sm:pb-24">
+        <div className="absolute inset-0 bg-linear-to-r from-black/95 via-black/60 to-black/15" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-clay to-transparent" />
+        <div className="relative mx-auto w-full max-w-7xl px-6 pb-14 sm:px-10 sm:pb-20">
           <Reveal>
             <p className="mb-4 text-xs tracking-[.35em] text-bone/85 uppercase">{hero.eyebrow}</p>
-            <h1 className="max-w-[13ch] font-display text-5xl font-medium leading-[.95] tracking-[-.035em] sm:text-7xl">
+            <h1 className="max-w-[13ch] font-display text-5xl font-medium leading-[.94] tracking-[-.035em] sm:text-7xl">
               {hero.headline}
             </h1>
             <p className="mt-6 max-w-lg text-base leading-relaxed text-bone/85">
@@ -217,75 +253,98 @@ function VariantHero({ direction }: VariantProps) {
     );
   if (direction === "friendly")
     return (
-      <section id="top" className="overflow-hidden bg-sand/65 pt-12">
-        <div className="mx-auto max-w-6xl px-6 text-center sm:px-10">
+      <section id="top" className="relative overflow-hidden bg-sand/65 py-14 sm:py-20">
+        <div className="absolute -left-24 top-10 size-72 rounded-full bg-clay/12 blur-3xl" />
+        <div className="absolute -right-24 bottom-0 size-80 rounded-full bg-bone/80 blur-2xl" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-6 sm:px-10 lg:grid-cols-[1fr_.88fr]">
           <Reveal>
-            <p className="mx-auto mb-4 inline-flex rounded-full bg-bone px-4 py-2 text-xs font-semibold tracking-wide text-clay">
-              {hero.eyebrow}
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-clay/20 bg-bone/80 px-4 py-2 text-xs font-semibold tracking-wide text-clay shadow-sm">
+              <Sparkles className="size-3.5" /> {hero.eyebrow}
             </p>
-            <h1 className="mx-auto max-w-[14ch] font-display text-4xl font-semibold leading-tight text-ink sm:text-6xl">
-              {hero.headline}
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-ink/70">
-              {hero.description}
-            </p>
-            <div className="mt-8 flex justify-center">
-              <Actions />
-            </div>
-          </Reveal>
-          {assets.hero.src ? (
-            <Reveal delay={160}>
-              <div className="relative mt-14 overflow-hidden rounded-t-[5rem] bg-bone p-3 sm:rounded-t-[9rem] sm:p-5">
-                <SiteImage
-                  kind="hero"
-                  className="aspect-[16/8] w-full rounded-t-[4.25rem] object-cover sm:rounded-t-[8rem]"
-                />
-              </div>
-            </Reveal>
-          ) : null}
-        </div>
-      </section>
-    );
-  if (direction === "minimal")
-    return (
-      <section id="top" className="bg-bone">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:px-10 sm:py-36">
-          <Reveal>
-            <p className="text-xs font-semibold tracking-[.18em] text-ink/50 uppercase">
-              {brand.tagline}
-            </p>
-            <h1 className="mt-8 max-w-[11ch] font-display text-5xl font-medium leading-[.92] tracking-[-.065em] text-ink sm:text-7xl lg:text-8xl">
-              {hero.headline}
-            </h1>
-            <div className="mt-12 grid gap-8 border-t border-ink/15 pt-6 md:grid-cols-[1fr_auto]">
-              <p className="max-w-xl text-base leading-relaxed text-ink/65">{hero.description}</p>
-              <Actions />
-            </div>
-          </Reveal>
-        </div>
-      </section>
-    );
-  return (
-    <section id="top" className="bg-bone">
-      <div className={`mx-auto grid max-w-7xl gap-10 px-6 py-16 sm:px-10 sm:py-24 ${hasHeroImage ? "lg:grid-cols-2 lg:items-center" : "max-w-4xl"}`}>
-        <div>
-          <Reveal>
-            <p className="mb-5 text-sm font-semibold tracking-wide text-clay">{hero.eyebrow}</p>
-            <h1 className="max-w-[12ch] font-display text-5xl font-medium leading-[1] tracking-tight text-ink sm:text-6xl">
+            <h1 className="max-w-[14ch] font-display text-4xl font-semibold leading-[1.02] tracking-[-.035em] text-ink sm:text-6xl">
               {hero.headline}
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink/70">{hero.description}</p>
             <div className="mt-8">
               <Actions />
             </div>
-            <Metrics className="mt-12 flex flex-wrap gap-x-10 gap-y-5 text-ink" />
+            <Metrics className="mt-10 grid max-w-xl grid-cols-3 gap-3 text-ink [&>div]:rounded-2xl [&>div]:bg-bone/80 [&>div]:p-4 [&>div]:shadow-sm" />
+          </Reveal>
+          <Reveal delay={140}>
+            <div className="relative rounded-[2.5rem] bg-bone p-3 shadow-2xl shadow-ink/10 sm:p-4">
+              <SiteImage kind="hero" className="aspect-[5/4] w-full rounded-[2rem] object-cover" />
+              <div className="absolute -bottom-5 left-6 right-6 flex flex-wrap justify-center gap-2 rounded-2xl border border-ink/8 bg-bone/95 p-3 shadow-xl backdrop-blur">
+                {hero.metrics.slice(0, 3).map((metric) => (
+                  <span
+                    key={metric.label}
+                    className="rounded-full bg-sand px-3 py-1.5 text-xs font-semibold text-ink/70"
+                  >
+                    {metric.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+    );
+  if (direction === "minimal")
+    return (
+      <section id="top" className="bg-bone">
+        <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10 sm:py-24">
+          <Reveal>
+            <div className="grid gap-8 md:grid-cols-[9rem_1fr]">
+              <p className="pt-2 text-xs font-semibold tracking-[.18em] text-ink/50 uppercase">
+                01 / Introduction
+              </p>
+              <div>
+                <p className="text-xs font-semibold tracking-[.18em] text-clay uppercase">
+                  {brand.tagline}
+                </p>
+                <h1 className="mt-6 max-w-[12ch] font-display text-5xl font-medium leading-[.94] tracking-[-.055em] text-ink sm:text-7xl lg:text-8xl">
+                  {hero.headline}
+                </h1>
+              </div>
+            </div>
+            <div className="mt-10 grid gap-8 border-y border-ink/15 py-7 md:grid-cols-[9rem_1fr_auto] md:items-center">
+              <span className="hidden text-xs text-ink/35 md:block">
+                {new Date().getFullYear()}
+              </span>
+              <p className="max-w-xl text-base leading-relaxed text-ink/65">{hero.description}</p>
+              <Actions />
+            </div>
+            <Metrics className="mt-7 grid grid-cols-2 gap-6 text-ink sm:grid-cols-3" />
+          </Reveal>
+        </div>
+      </section>
+    );
+  return (
+    <section id="top" className="relative overflow-hidden bg-bone">
+      <div className="absolute right-0 top-0 h-full w-1/3 bg-sand/40" />
+      <div
+        className={`relative mx-auto grid max-w-7xl gap-10 px-6 py-14 sm:px-10 sm:py-20 ${hasHeroImage ? "lg:grid-cols-[1.02fr_.98fr] lg:items-center" : "max-w-4xl"}`}
+      >
+        <div>
+          <Reveal>
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-clay/20 bg-bone px-4 py-2 text-xs font-semibold tracking-wide text-clay">
+              <Check className="size-3.5" />
+              {hero.eyebrow}
+            </p>
+            <h1 className="max-w-[12ch] font-display text-5xl font-medium leading-[.98] tracking-[-.035em] text-ink sm:text-6xl lg:text-7xl">
+              {hero.headline}
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink/70">{hero.description}</p>
+            <div className="mt-8">
+              <Actions />
+            </div>
+            <Metrics className="mt-10 grid grid-cols-3 gap-4 border-t border-ink/10 pt-6 text-ink" />
           </Reveal>
         </div>
         {hasHeroImage && (
           <Reveal delay={130}>
             <SiteImage
               kind="hero"
-              className="aspect-[5/4] w-full rounded-2xl object-cover shadow-xl shadow-ink/10"
+              className="aspect-[5/4] w-full rounded-[2rem] object-cover shadow-2xl shadow-ink/15 ring-8 ring-bone"
             />
           </Reveal>
         )}
@@ -318,14 +377,16 @@ function VariantServices({ direction }: VariantProps) {
   if (direction === "luxury")
     return (
       <section id="services" className="bg-bone">
-        <div className="mx-auto max-w-7xl px-6 py-28 sm:px-10 sm:py-40">
+        <div className="mx-auto max-w-7xl px-6 py-20 sm:px-10 sm:py-28">
           <SectionTitle eyebrow={services.eyebrow} heading={services.heading} />
-          <div className="border-y border-ink/15">
+          <div className="border-y border-ink/15 bg-sand/20 px-5 sm:px-8">
             {services.items.map((item, index) => (
               <Reveal key={item.number} delay={index * 70}>
-                <article className="grid gap-4 border-b border-ink/15 py-8 last:border-0 md:grid-cols-[8rem_1fr_1.3fr]">
+                <article className="group grid gap-4 border-b border-ink/15 py-7 last:border-0 md:grid-cols-[6rem_1fr_1.3fr] md:items-center">
                   <span className="font-display text-lg text-clay">{item.number}</span>
-                  <h3 className="font-display text-2xl text-ink">{item.title}</h3>
+                  <h3 className="font-display text-2xl text-ink transition-transform duration-300 group-hover:translate-x-1">
+                    {item.title}
+                  </h3>
                   <p className="leading-relaxed text-ink/65">{item.body}</p>
                 </article>
               </Reveal>
@@ -337,7 +398,7 @@ function VariantServices({ direction }: VariantProps) {
   if (direction === "modern")
     return (
       <section id="services" className="overflow-hidden bg-bone">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:px-10 sm:py-32">
+        <div className="mx-auto max-w-7xl px-6 py-20 sm:px-10 sm:py-24">
           <SectionTitle eyebrow={services.eyebrow} heading={services.heading} />
           <div className="grid gap-4 md:grid-cols-12">
             {services.items.map((item, index) => (
@@ -347,12 +408,12 @@ function VariantServices({ direction }: VariantProps) {
                 className={index === 0 || index === 3 ? "md:col-span-7" : "md:col-span-5"}
               >
                 <article
-                  className={`h-full p-8 ${index === 0 ? "bg-ink text-bone" : index === 3 ? "bg-clay text-bone" : "bg-sand/70 text-ink"}`}
+                  className={`group h-full min-h-64 overflow-hidden rounded-2xl p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl ${index === 0 ? "bg-ink text-bone" : index === 3 ? "bg-clay text-bone" : "bg-sand/70 text-ink"}`}
                 >
                   <span className="text-xs font-semibold tracking-[.2em] opacity-55">
                     {item.number}
                   </span>
-                  <h3 className="mt-12 font-display text-3xl font-semibold tracking-tight">
+                  <h3 className="mt-10 font-display text-3xl font-semibold tracking-tight">
                     {item.title}
                   </h3>
                   <p className="mt-4 max-w-md leading-relaxed opacity-70">{item.body}</p>
@@ -366,17 +427,29 @@ function VariantServices({ direction }: VariantProps) {
   if (direction === "friendly")
     return (
       <section id="services" className="bg-bone">
-        <div className="mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-28">
+        <div className="mx-auto max-w-6xl px-6 py-18 sm:px-10 sm:py-24">
           <SectionTitle eyebrow={services.eyebrow} heading={services.heading} centered />
           <div className="grid gap-5 sm:grid-cols-2">
             {services.items.map((item, index) => (
               <Reveal key={item.number} delay={index * 80}>
-                <article className="h-full rounded-[2rem] bg-sand/65 p-7 ring-1 ring-clay/10">
-                  <span className="grid size-11 place-items-center rounded-2xl bg-clay text-sm font-bold text-bone">
+                <article
+                  className={`group h-full rounded-[2rem] p-7 ring-1 ring-clay/10 transition duration-300 hover:-translate-y-1 hover:shadow-xl ${index % 3 === 0 ? "bg-clay text-bone" : index % 3 === 1 ? "bg-sand/70 text-ink" : "bg-ink text-bone"}`}
+                >
+                  <span
+                    className={`grid size-11 place-items-center rounded-2xl text-sm font-bold ${index % 3 === 1 ? "bg-clay text-bone" : "bg-bone/15 text-bone"}`}
+                  >
                     {item.number}
                   </span>
-                  <h3 className="mt-6 font-display text-2xl text-ink">{item.title}</h3>
-                  <p className="mt-3 leading-relaxed text-ink/65">{item.body}</p>
+                  <h3
+                    className={`mt-6 font-display text-2xl ${index % 3 === 1 ? "text-ink" : "text-bone"}`}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    className={`mt-3 leading-relaxed ${index % 3 === 1 ? "text-ink/65" : "text-bone/72"}`}
+                  >
+                    {item.body}
+                  </p>
                 </article>
               </Reveal>
             ))}
@@ -387,14 +460,16 @@ function VariantServices({ direction }: VariantProps) {
   if (direction === "minimal")
     return (
       <section id="services" className="bg-bone">
-        <div className="mx-auto max-w-5xl px-6 py-24 sm:px-10 sm:py-36">
+        <div className="mx-auto max-w-5xl px-6 py-18 sm:px-10 sm:py-24">
           <SectionTitle eyebrow={services.eyebrow} heading={services.heading} />
           <div>
             {services.items.map((item, index) => (
               <Reveal key={item.number} delay={index * 60}>
-                <article className="grid gap-3 border-t border-ink/15 py-7 md:grid-cols-[5rem_1fr_1.2fr]">
+                <article className="group grid gap-3 border-t border-ink/15 py-7 md:grid-cols-[5rem_1fr_1.2fr]">
                   <span className="text-sm text-ink/45">{item.number}</span>
-                  <h3 className="font-display text-2xl text-ink">{item.title}</h3>
+                  <h3 className="font-display text-2xl text-ink transition-transform duration-300 group-hover:translate-x-1">
+                    {item.title}
+                  </h3>
                   <p className="text-sm leading-relaxed text-ink/60">{item.body}</p>
                 </article>
               </Reveal>
@@ -405,15 +480,29 @@ function VariantServices({ direction }: VariantProps) {
     );
   return (
     <section id="services" className="bg-sand/45">
-      <div className="mx-auto max-w-7xl px-6 py-20 sm:px-10 sm:py-28">
+      <div className="mx-auto max-w-7xl px-6 py-18 sm:px-10 sm:py-24">
         <SectionTitle eyebrow={services.eyebrow} heading={services.heading} />
         <div className="grid gap-5 md:grid-cols-2">
           {services.items.map((item, index) => (
             <Reveal key={item.number} delay={index * 70}>
-              <article className="h-full rounded-xl bg-bone p-8 shadow-sm ring-1 ring-ink/8">
-                <span className="text-sm font-semibold text-clay">{item.number}</span>
-                <h3 className="mt-6 font-display text-2xl text-ink">{item.title}</h3>
-                <p className="mt-3 leading-relaxed text-ink/65">{item.body}</p>
+              <article
+                className={`group h-full overflow-hidden rounded-2xl p-8 shadow-sm ring-1 ring-ink/8 transition duration-300 hover:-translate-y-1 hover:shadow-xl ${index === 0 ? "bg-ink text-bone" : "bg-bone text-ink"}`}
+              >
+                <span
+                  className={`text-sm font-semibold ${index === 0 ? "text-clay" : "text-clay"}`}
+                >
+                  {item.number}
+                </span>
+                <h3
+                  className={`mt-6 font-display text-2xl ${index === 0 ? "text-bone" : "text-ink"}`}
+                >
+                  {item.title}
+                </h3>
+                <p
+                  className={`mt-3 leading-relaxed ${index === 0 ? "text-bone/70" : "text-ink/65"}`}
+                >
+                  {item.body}
+                </p>
               </article>
             </Reveal>
           ))}
@@ -439,7 +528,9 @@ function VariantAbout({ direction }: VariantProps) {
   if (direction === "modern")
     return (
       <section id="about" className="bg-sand/65">
-        <div className={`mx-auto grid max-w-7xl gap-8 px-6 py-24 sm:px-10 sm:py-32 ${hasAboutImage ? "lg:grid-cols-12" : "max-w-4xl"}`}>
+        <div
+          className={`mx-auto grid max-w-7xl gap-8 px-6 py-20 sm:px-10 sm:py-24 ${hasAboutImage ? "lg:grid-cols-12" : "max-w-4xl"}`}
+        >
           <Reveal className="lg:col-span-5">
             <p className="text-xs font-semibold tracking-[.16em] text-clay uppercase">
               {about.eyebrow}
@@ -453,7 +544,9 @@ function VariantAbout({ direction }: VariantProps) {
             />
           </Reveal>
           <Reveal delay={100} className={hasAboutImage ? "lg:col-span-7" : ""}>
-            {hasAboutImage && <SiteImage kind="about" className="aspect-[16/9] w-full object-cover" />}
+            {hasAboutImage && (
+              <SiteImage kind="about" className="aspect-[16/9] w-full object-cover" />
+            )}
             <p className="ml-auto mt-8 max-w-xl text-lg leading-relaxed text-ink/70">
               {about.body}
             </p>
@@ -464,7 +557,9 @@ function VariantAbout({ direction }: VariantProps) {
   if (direction === "luxury")
     return (
       <section id="about" className="bg-ink py-10 text-bone sm:py-16">
-        <div className={`mx-auto grid max-w-7xl gap-12 px-6 sm:px-10 ${hasAboutImage ? "lg:grid-cols-2 lg:items-center" : "max-w-4xl"}`}>
+        <div
+          className={`mx-auto grid max-w-7xl gap-12 px-6 sm:px-10 ${hasAboutImage ? "lg:grid-cols-2 lg:items-center" : "max-w-4xl"}`}
+        >
           {hasAboutImage && (
             <Reveal>
               <SiteImage kind="about" className="aspect-[4/5] w-full object-cover grayscale" />
@@ -487,8 +582,10 @@ function VariantAbout({ direction }: VariantProps) {
   if (direction === "friendly")
     return (
       <section id="about" className="bg-sand/50">
-        <div className="mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-28">
-          <div className={`grid items-center gap-10 rounded-[3rem] bg-bone p-6 sm:p-10 ${hasAboutImage ? "md:grid-cols-2" : "max-w-2xl mx-auto"}`}>
+        <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
+          <div
+            className={`grid items-center gap-10 rounded-[3rem] bg-bone p-6 shadow-xl shadow-ink/5 ring-1 ring-clay/10 sm:p-10 ${hasAboutImage ? "md:grid-cols-2" : "mx-auto max-w-2xl"}`}
+          >
             {hasAboutImage && (
               <Reveal>
                 <SiteImage
@@ -512,16 +609,22 @@ function VariantAbout({ direction }: VariantProps) {
   if (direction === "minimal")
     return (
       <section id="about" className="bg-bone">
-        <div className="mx-auto max-w-3xl px-6 py-28 text-center sm:px-10 sm:py-40">
+        <div className="mx-auto max-w-4xl px-6 py-20 sm:px-10 sm:py-28">
           <Reveal>
-            <p className="text-xs tracking-[.18em] text-ink/45 uppercase">{about.eyebrow}</p>
-            <h2 className="mt-6 font-display text-4xl leading-tight tracking-tight text-ink sm:text-6xl">
-              {about.heading}
-            </h2>
-            <p className="mx-auto mt-8 max-w-2xl leading-relaxed text-ink/65">{about.body}</p>
+            <div className="grid gap-8 md:grid-cols-[9rem_1fr]">
+              <p className="pt-2 text-xs tracking-[.18em] text-ink/45 uppercase">
+                02 / {about.eyebrow}
+              </p>
+              <div>
+                <h2 className="font-display text-4xl leading-tight tracking-tight text-ink sm:text-6xl">
+                  {about.heading}
+                </h2>
+                <p className="mt-7 max-w-2xl leading-relaxed text-ink/65">{about.body}</p>
+              </div>
+            </div>
             <Points
               items={about.points}
-              className="mx-auto mt-12 grid max-w-xl gap-4 text-sm text-ink/70"
+              className="mt-10 grid gap-0 border-y border-ink/15 text-sm text-ink/70 md:ml-[9rem] [&_li]:border-b [&_li]:border-ink/10 [&_li]:py-4 [&_li:last-child]:border-0"
             />
           </Reveal>
         </div>
@@ -529,7 +632,9 @@ function VariantAbout({ direction }: VariantProps) {
     );
   return (
     <section id="about" className="bg-bone">
-      <div className={`mx-auto grid max-w-7xl gap-12 px-6 py-20 sm:px-10 sm:py-28 ${hasAboutImage ? "md:grid-cols-2 md:items-center" : "max-w-4xl"}`}>
+      <div
+        className={`mx-auto grid max-w-7xl gap-12 px-6 py-18 sm:px-10 sm:py-24 ${hasAboutImage ? "md:grid-cols-2 md:items-center" : "max-w-4xl"}`}
+      >
         {hasAboutImage && (
           <Reveal>
             <SiteImage kind="about" className="aspect-[4/5] w-full rounded-xl object-cover" />
@@ -553,37 +658,37 @@ function OrderedSections({ direction, leadCaptureTarget }: VariantProps) {
     professional: [
       <VariantServices key="services" direction={direction} />,
       <VariantAbout key="about" direction={direction} />,
-      <Testimonials key="reviews" />,
-      <Faq key="faq" />,
-      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
+      <Testimonials key="reviews" visualDirection={direction} />,
+      <Faq key="faq" visualDirection={direction} />,
+      <Contact key="contact" visualDirection={direction} leadCaptureTarget={leadCaptureTarget} />,
     ],
     modern: [
       <VariantServices key="services" direction={direction} />,
       <VariantAbout key="about" direction={direction} />,
-      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
-      <Testimonials key="reviews" />,
-      <Faq key="faq" />,
+      <Contact key="contact" visualDirection={direction} leadCaptureTarget={leadCaptureTarget} />,
+      <Testimonials key="reviews" visualDirection={direction} />,
+      <Faq key="faq" visualDirection={direction} />,
     ],
     luxury: [
       <VariantAbout key="about" direction={direction} />,
       <VariantServices key="services" direction={direction} />,
-      <Testimonials key="reviews" />,
-      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
-      <Faq key="faq" />,
+      <Testimonials key="reviews" visualDirection={direction} />,
+      <Contact key="contact" visualDirection={direction} leadCaptureTarget={leadCaptureTarget} />,
+      <Faq key="faq" visualDirection={direction} />,
     ],
     friendly: [
       <VariantServices key="services" direction={direction} />,
-      <Testimonials key="reviews" />,
+      <Testimonials key="reviews" visualDirection={direction} />,
       <VariantAbout key="about" direction={direction} />,
-      <Faq key="faq" />,
-      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
+      <Faq key="faq" visualDirection={direction} />,
+      <Contact key="contact" visualDirection={direction} leadCaptureTarget={leadCaptureTarget} />,
     ],
     minimal: [
       <VariantServices key="services" direction={direction} />,
       <VariantAbout key="about" direction={direction} />,
-      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
-      <Faq key="faq" />,
-      <Testimonials key="reviews" />,
+      <Contact key="contact" visualDirection={direction} leadCaptureTarget={leadCaptureTarget} />,
+      <Faq key="faq" visualDirection={direction} />,
+      <Testimonials key="reviews" visualDirection={direction} />,
     ],
   };
   return <>{sections[direction]}</>;

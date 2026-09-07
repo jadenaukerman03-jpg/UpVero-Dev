@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Lock } from "lucide-react";
+import {
+  ArrowUpRight,
+  ChevronDown,
+  LayoutTemplate,
+  Lock,
+  Palette,
+  SlidersHorizontal,
+  Type,
+} from "lucide-react";
 
 import type { DemoTheme, DemoVisualDirection, VisualDirectionDefinition } from "@/data/demo-themes";
 import {
@@ -31,6 +39,8 @@ type DemoLaunchControlsProps = {
   initiallyExpanded?: boolean;
 };
 
+type SettingsSection = "direction" | "colors" | "fonts";
+
 export function DemoLaunchControls({
   businessName,
   themes,
@@ -52,7 +62,13 @@ export function DemoLaunchControls({
 }: DemoLaunchControlsProps) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [upgradeMessage, setUpgradeMessage] = useState("");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("direction");
   const panelRef = useRef<HTMLDivElement>(null);
+  const selectedDirectionLabel =
+    directions.find((direction) => direction.id === selectedDirection)?.label ?? "Custom";
+  const selectedThemeLabel =
+    selectedTheme.id === "original" ? "Original palette" : selectedTheme.label;
+  const selectedFontLabel = selectedFont.id === "original" ? "Editorial type" : selectedFont.label;
 
   useEffect(() => {
     function collapseWhileExploringPreview(event: Event) {
@@ -91,115 +107,127 @@ export function DemoLaunchControls({
       : tierDefinitions[requiredTier].label;
   }
 
-  if (!expanded) {
+  if (!expanded)
     return (
       <div
         ref={panelRef}
-        className="fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 z-50 mx-auto max-w-md sm:right-6 sm:bottom-6 sm:left-auto"
+        className="fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 z-50 mx-auto max-w-xl sm:right-6 sm:bottom-6 sm:left-auto"
       >
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-ink/10 bg-bone/95 px-4 text-left shadow-2xl shadow-ink/20 backdrop-blur transition hover:bg-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
+          className="group flex min-h-16 w-full items-center gap-3 rounded-full border border-bone/15 bg-ink/95 px-3.5 py-2 text-left text-bone shadow-2xl shadow-ink/25 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay sm:px-5"
           aria-expanded={false}
           aria-label="Expand website controls"
         >
-          <span>
-            <span className="block text-xs font-semibold tracking-wide text-clay uppercase">
-              Website settings
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-clay text-bone">
+            <SlidersHorizontal className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-bold tracking-[.16em] text-clay uppercase">
+              Website studio
             </span>
-            <span className="mt-0.5 block font-display text-base font-medium text-ink">
-              Customize your preview
+            <span className="block truncate text-sm font-semibold">
+              {selectedDirectionLabel} · {selectedThemeLabel} · {selectedFontLabel}
             </span>
           </span>
-          <span
-            className="grid size-8 place-items-center rounded-full bg-ink text-lg text-bone"
-            aria-hidden="true"
-          >
-            +
-          </span>
+          <span className="hidden text-xs text-bone/55 sm:block">Customize</span>
+          <ChevronDown className="size-4 shrink-0 rotate-180 text-bone/60" />
         </button>
       </div>
     );
-  }
+
+  const settingsTabs: Array<{
+    id: SettingsSection;
+    label: string;
+    icon: typeof LayoutTemplate;
+  }> = [
+    { id: "direction", label: "Layout", icon: LayoutTemplate },
+    { id: "colors", label: "Colors", icon: Palette },
+    { id: "fonts", label: "Type", icon: Type },
+  ];
 
   return (
-    <div className="fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 z-50 mx-auto max-w-md sm:right-6 sm:bottom-6 sm:left-auto">
+    <div className="fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 z-50 mx-auto max-w-xl sm:right-6 sm:bottom-6 sm:left-auto">
       <div
         ref={panelRef}
-        className="rounded-2xl border border-ink/10 bg-bone/95 p-3 shadow-2xl shadow-ink/20 backdrop-blur sm:p-4"
+        className="overflow-hidden rounded-[1.75rem] border border-bone/15 bg-ink/95 text-bone shadow-2xl shadow-ink/30 backdrop-blur-xl"
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3 border-b border-bone/10 px-4 py-3 sm:px-5">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-clay text-bone">
+            <SlidersHorizontal className="size-4" />
+          </span>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-lg leading-tight font-medium text-ink text-pretty">
-              Your {businessName} Website Is Ready
-            </p>
-            <p className="mt-1 text-sm leading-snug text-ink/65">
-              Choose a visual direction, colors, and typography.
-            </p>
+            <p className="truncate text-sm font-semibold">Style {businessName}</p>
+            <p className="text-xs text-bone/55">Changes appear instantly in the preview.</p>
           </div>
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="min-h-11 min-w-11 rounded-full text-sm font-medium text-ink/65 transition hover:bg-sand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
-            aria-expanded={expanded}
-            aria-label={expanded ? "Collapse website controls" : "Expand website controls"}
+            className="grid size-10 place-items-center rounded-full text-bone/65 transition hover:bg-bone/10 hover:text-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
+            aria-expanded={true}
+            aria-label="Collapse website controls"
           >
-            {expanded ? "−" : "+"}
+            <ChevronDown className="size-4" />
           </button>
         </div>
 
-        <div className="editor-settings-scroll mt-3 max-h-[min(25rem,calc(100svh-12rem))] overflow-y-auto pr-2">
-          {!allowAllPreviewOptions && (
-            <fieldset className="mt-3">
-              <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
-                Plan access
-              </legend>
-              <div
-                className="mt-2 grid grid-cols-3 gap-2"
-                role="radiogroup"
-                aria-label="Website plan tier"
-              >
-                {(Object.keys(tierDefinitions) as SubscriptionTier[]).map((tierId) => {
-                  const selected = tierId === tier;
-                  const definition = tierDefinitions[tierId];
-                  return (
-                    <button
-                      key={tierId}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => {
-                        setUpgradeMessage("");
-                        onTierChange(tierId);
-                      }}
-                      className={`min-h-11 rounded-xl border px-2 py-2 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-ink bg-ink text-bone" : "border-ink/15 bg-white text-ink hover:bg-sand"}`}
-                    >
-                      <span className="block font-semibold">{definition.label}</span>
-                      <span
-                        className={`mt-0.5 block leading-snug ${selected ? "text-bone/65" : "text-ink/55"}`}
-                      >
-                        {tierId === "professional"
-                          ? "Full platform access"
-                          : tierId === "growth"
-                            ? "More control"
-                            : "Essentials"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-1.5 text-xs leading-snug text-ink/55">
-                {tierDefinitions[tier].description}
-              </p>
-            </fieldset>
-          )}
-          <fieldset className="mt-3">
-            <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
-              Visual direction
-            </legend>
+        {!allowAllPreviewOptions && (
+          <div className="border-b border-bone/10 px-4 py-3 sm:px-5">
             <div
-              className="mt-2 grid grid-cols-2 gap-2"
+              className="grid grid-cols-3 gap-1 rounded-xl bg-bone/5 p-1"
+              role="radiogroup"
+              aria-label="Website plan tier"
+            >
+              {(Object.keys(tierDefinitions) as SubscriptionTier[]).map((tierId) => {
+                const selected = tierId === tier;
+                return (
+                  <button
+                    key={tierId}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      setUpgradeMessage("");
+                      onTierChange(tierId);
+                    }}
+                    className={`min-h-9 rounded-lg px-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-clay ${selected ? "bg-bone text-ink" : "text-bone/60 hover:text-bone"}`}
+                  >
+                    {tierDefinitions[tierId].label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div
+          className="grid grid-cols-3 border-b border-bone/10 px-3 pt-2 sm:px-4"
+          role="tablist"
+          aria-label="Website settings"
+        >
+          {settingsTabs.map((tab) => {
+            const selected = settingsSection === tab.id;
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setSettingsSection(tab.id)}
+                className={`flex min-h-11 items-center justify-center gap-2 border-b-2 px-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-clay ${selected ? "border-clay text-bone" : "border-transparent text-bone/45 hover:text-bone/80"}`}
+              >
+                <Icon className="size-3.5" /> {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="editor-settings-scroll max-h-[min(19rem,calc(100svh-18rem))] min-h-36 overflow-y-auto px-4 py-4 sm:px-5">
+          {settingsSection === "direction" && (
+            <div
+              className="grid grid-cols-2 gap-2"
               role="radiogroup"
               aria-label="Website visual direction"
             >
@@ -217,32 +245,31 @@ export function DemoLaunchControls({
                         onSelectDirection(direction.id),
                       )
                     }
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-ink bg-ink text-bone" : lockedBy ? "border-ink/10 bg-sand/45 text-ink/65 hover:bg-sand" : "border-ink/15 bg-white text-ink hover:bg-sand"}`}
+                    className={`relative min-h-20 rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay/15 text-bone" : "border-bone/10 bg-bone/5 text-bone/75 hover:border-bone/25 hover:bg-bone/10"}`}
                   >
-                    <span className="block font-semibold">
-                      {direction.id === recommendedDirection
-                        ? `✓ Recommended · ${direction.label}`
-                        : direction.label}
-                    </span>
-                    <span className={`mt-0.5 block ${selected ? "text-bone/65" : "text-ink/55"}`}>
+                    <span className="block text-xs font-semibold">{direction.label}</span>
+                    <span className="mt-1 block text-[11px] leading-snug text-bone/45">
                       {direction.description}
                     </span>
+                    {direction.id === recommendedDirection && (
+                      <span className="mt-2 inline-block text-[9px] font-bold tracking-wide text-clay uppercase">
+                        Recommended
+                      </span>
+                    )}
                     {lockedBy && (
-                      <span className="mt-1 inline-flex items-center gap-1 font-semibold text-clay">
-                        <Lock size={11} /> {lockedBy}
+                      <span className="absolute top-2 right-2" aria-label={`${lockedBy} required`}>
+                        <Lock className="size-3 text-clay" />
                       </span>
                     )}
                   </button>
                 );
               })}
             </div>
-          </fieldset>
-          <fieldset className="mt-3">
-            <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
-              Choose your style
-            </legend>
+          )}
+
+          {settingsSection === "colors" && (
             <div
-              className="mt-2 flex flex-wrap gap-2"
+              className="grid grid-cols-2 gap-2"
               role="radiogroup"
               aria-label="Website color theme"
             >
@@ -258,36 +285,29 @@ export function DemoLaunchControls({
                     onClick={() =>
                       selectOption("color-theme", theme.id, () => onSelectTheme(theme.id))
                     }
-                    className={`min-h-11 rounded-full border px-3 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-ink bg-ink text-bone" : lockedBy ? "border-ink/10 bg-sand/45 text-ink/65 hover:bg-sand" : "border-ink/15 bg-white text-ink hover:bg-sand"}`}
+                    className={`min-h-16 rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay/15" : "border-bone/10 bg-bone/5 hover:border-bone/25 hover:bg-bone/10"}`}
                   >
-                    <span className="mr-1.5 inline-flex -space-x-1 align-middle" aria-hidden="true">
+                    <span className="flex items-center justify-between gap-2 text-xs font-semibold text-bone">
+                      {theme.label}
+                      {lockedBy && <Lock className="size-3 text-clay" />}
+                    </span>
+                    <span className="mt-2 flex gap-1" aria-hidden="true">
                       {theme.swatches.map((color) => (
                         <span
                           key={color}
-                          className="size-3 rounded-full border border-white/70"
+                          className="h-4 flex-1 rounded-full ring-1 ring-white/15"
                           style={{ backgroundColor: color }}
                         />
                       ))}
                     </span>
-                    {theme.recommended ? "✓ " : ""}
-                    {theme.label}
-                    {lockedBy && (
-                      <Lock
-                        className="ml-1 inline-block"
-                        size={11}
-                        aria-label={`${lockedBy} required`}
-                      />
-                    )}
                   </button>
                 );
               })}
             </div>
-          </fieldset>
-          <fieldset className="mt-3">
-            <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
-              Fonts
-            </legend>
-            <div className="mt-2 grid gap-2">
+          )}
+
+          {settingsSection === "fonts" && (
+            <div className="grid gap-2" role="radiogroup" aria-label="Website typography">
               {fonts.map((font) => {
                 const selected = font.id === selectedFont.id;
                 const lockedBy = lockLabel("font", font.id);
@@ -298,25 +318,35 @@ export function DemoLaunchControls({
                     role="radio"
                     aria-checked={selected}
                     onClick={() => selectOption("font", font.id, () => onSelectFont(font.id))}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-ink bg-ink text-bone" : lockedBy ? "border-ink/10 bg-sand/45 text-ink/65 hover:bg-sand" : "border-ink/15 bg-white text-ink hover:bg-sand"}`}
+                    className={`flex min-h-16 items-center gap-4 rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay/15" : "border-bone/10 bg-bone/5 hover:border-bone/25 hover:bg-bone/10"}`}
                   >
-                    <span className="block font-semibold">{font.label}</span>
-                    <span className={`mt-0.5 block ${selected ? "text-bone/65" : "text-ink/55"}`}>
-                      {font.description}
+                    <span
+                      className="w-12 shrink-0 text-center text-3xl text-bone"
+                      style={{ fontFamily: font.variables["--preview-font-display"] }}
+                    >
+                      Aa
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-bone">{font.label}</span>
+                      <span className="mt-0.5 block text-[11px] text-bone/45">
+                        {font.description}
+                      </span>
                     </span>
                     {lockedBy && (
-                      <span className="mt-1 inline-flex items-center gap-1 font-semibold text-clay">
-                        <Lock size={11} /> {lockedBy} required
-                      </span>
+                      <Lock
+                        className="size-3 shrink-0 text-clay"
+                        aria-label={`${lockedBy} required`}
+                      />
                     )}
                   </button>
                 );
               })}
             </div>
-          </fieldset>
+          )}
+
           {upgradeMessage && (
             <p
-              className="mt-3 rounded-lg bg-sand px-3 py-2 text-xs font-medium text-ink"
+              className="mt-3 rounded-lg bg-clay/15 px-3 py-2 text-xs font-medium text-bone"
               role="status"
             >
               {upgradeMessage}
@@ -324,12 +354,15 @@ export function DemoLaunchControls({
           )}
         </div>
 
-        <a
-          href={launchHref}
-          className="mt-3 flex min-h-11 items-center justify-center rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition-colors hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
-        >
-          {launchLabel}
-        </a>
+        <div className="border-t border-bone/10 p-3 sm:px-4">
+          <a
+            href={launchHref}
+            className="group flex min-h-11 items-center justify-center gap-2 rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition hover:-translate-y-0.5 hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
+          >
+            {launchLabel}{" "}
+            <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </a>
+        </div>
       </div>
     </div>
   );

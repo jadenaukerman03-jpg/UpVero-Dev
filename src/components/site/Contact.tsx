@@ -4,6 +4,7 @@ import { useSiteConfig } from "@/data/site-config-context";
 import { Reveal } from "@/components/Reveal";
 import { CheckCircle2 } from "lucide-react";
 import { submitWebsiteContactLead } from "@/services/website-contact-leads";
+import type { DemoVisualDirection } from "@/data/demo-themes";
 
 const inputClass =
   "mt-1.5 w-full rounded-lg bg-bone px-4 py-3 text-sm text-ink ring-1 ring-ink/10 placeholder:text-ink/35 focus:ring-2 focus:ring-clay focus:outline-none";
@@ -13,13 +14,19 @@ export type WebsiteLeadCaptureTarget =
 
 export function Contact({
   leadCaptureTarget,
+  visualDirection,
 }: {
   leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
+  visualDirection?: DemoVisualDirection | undefined;
 }) {
   const [sent, setSent] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
   const { contact, leadHandling } = useSiteConfig();
   const submitLead = useServerFn(submitWebsiteContactLead);
+  const modern = visualDirection === "modern";
+  const luxury = visualDirection === "luxury";
+  const friendly = visualDirection === "friendly";
+  const minimal = visualDirection === "minimal";
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -49,27 +56,46 @@ export function Contact({
   }
 
   return (
-    <section id="contact" className="bg-ink">
-      <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-24">
-        <div className="grid gap-10 md:grid-cols-2 lg:gap-16">
+    <section id="contact" className={friendly ? "bg-clay" : minimal ? "bg-sand/35" : "bg-ink"}>
+      <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-20">
+        <div
+          className={`grid gap-10 md:grid-cols-2 lg:gap-16 ${luxury ? "md:grid-cols-[.85fr_1.15fr]" : ""}`}
+        >
           <Reveal>
-            <p className="mb-3 text-sm font-semibold tracking-wide text-clay">{contact.eyebrow}</p>
-            <h2 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance text-bone sm:text-4xl">
+            <p
+              className={`mb-3 text-sm font-semibold tracking-wide ${friendly ? "text-ink/65" : "text-clay"}`}
+            >
+              {contact.eyebrow}
+            </p>
+            <h2
+              className={`font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-5xl ${minimal ? "text-ink" : "text-bone"}`}
+            >
               {contact.heading}
             </h2>
-            <p className="mt-5 max-w-[44ch] leading-relaxed text-bone/65">{contact.body}</p>
+            <p
+              className={`mt-5 max-w-[44ch] leading-relaxed ${minimal ? "text-ink/65" : friendly ? "text-bone/85" : "text-bone/65"}`}
+            >
+              {contact.body}
+            </p>
             <dl className="mt-9 space-y-5 text-sm">
               {contact.details.map((d) => (
-                <div key={d.label} className="flex gap-3">
-                  <dt className="w-20 shrink-0 text-bone/50">{d.label}</dt>
-                  <dd className="text-bone/85">{d.value}</dd>
+                <div
+                  key={d.label}
+                  className={`flex gap-3 border-b pb-4 ${minimal ? "border-ink/10" : "border-bone/10"}`}
+                >
+                  <dt className={`w-20 shrink-0 ${minimal ? "text-ink/45" : "text-bone/50"}`}>
+                    {d.label}
+                  </dt>
+                  <dd className={minimal ? "text-ink/80" : "text-bone/85"}>{d.value}</dd>
                 </div>
               ))}
             </dl>
           </Reveal>
 
           <Reveal delay={120}>
-            <div className="rounded-2xl bg-bone p-7 ring-1 ring-ink/5 sm:p-8">
+            <div
+              className={`bg-bone p-7 shadow-2xl shadow-ink/15 ring-1 ring-ink/5 sm:p-8 ${friendly ? "rounded-[2.5rem]" : modern ? "rounded-none" : luxury ? "rounded-t-[4rem]" : "rounded-2xl"}`}
+            >
               {sent ? (
                 <div className="flex h-full min-h-72 flex-col items-center justify-center text-center">
                   <CheckCircle2 className="size-10 text-clay" />

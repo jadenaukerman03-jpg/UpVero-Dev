@@ -21,10 +21,7 @@ export type VisualDirectionDefinition = {
   id: DemoVisualDirection;
   label: string;
   description: string;
-  variables: Record<
-    "--demo-radius" | "--demo-shadow" | "--demo-section-space" | "--font-display",
-    string
-  >;
+  variables: Record<"--demo-radius" | "--demo-shadow" | "--demo-section-space", string>;
 };
 
 export const visualDirectionDefinitions: Record<DemoVisualDirection, VisualDirectionDefinition> = {
@@ -36,7 +33,6 @@ export const visualDirectionDefinitions: Record<DemoVisualDirection, VisualDirec
       "--demo-radius": "1rem",
       "--demo-shadow": "0 10px 25px rgb(18 26 38 / 8%)",
       "--demo-section-space": "1",
-      "--font-display": '"Fraunces", ui-serif, Georgia, serif',
     },
   },
   modern: {
@@ -47,7 +43,6 @@ export const visualDirectionDefinitions: Record<DemoVisualDirection, VisualDirec
       "--demo-radius": "0.75rem",
       "--demo-shadow": "0 16px 40px rgb(18 26 38 / 14%)",
       "--demo-section-space": "1.08",
-      "--font-display": '"Archivo", ui-sans-serif, system-ui, sans-serif',
     },
   },
   luxury: {
@@ -58,7 +53,6 @@ export const visualDirectionDefinitions: Record<DemoVisualDirection, VisualDirec
       "--demo-radius": "1.5rem",
       "--demo-shadow": "0 18px 50px rgb(18 18 15 / 12%)",
       "--demo-section-space": "1.18",
-      "--font-display": '"Fraunces", ui-serif, Georgia, serif',
     },
   },
   friendly: {
@@ -69,7 +63,6 @@ export const visualDirectionDefinitions: Record<DemoVisualDirection, VisualDirec
       "--demo-radius": "1.35rem",
       "--demo-shadow": "0 12px 30px rgb(18 38 28 / 10%)",
       "--demo-section-space": "1.05",
-      "--font-display": '"Archivo", ui-sans-serif, system-ui, sans-serif',
     },
   },
   minimal: {
@@ -80,7 +73,6 @@ export const visualDirectionDefinitions: Record<DemoVisualDirection, VisualDirec
       "--demo-radius": "0.5rem",
       "--demo-shadow": "0 4px 14px rgb(18 26 38 / 5%)",
       "--demo-section-space": "0.9",
-      "--font-display": '"Archivo", ui-sans-serif, system-ui, sans-serif',
     },
   },
 };
