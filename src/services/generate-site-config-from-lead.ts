@@ -1,13 +1,23 @@
 import type { Lead } from "@/data/leads";
 import { validateSiteConfig, type SiteConfig } from "@/data/site";
 
-const DEFAULT_INDUSTRY = "local service";
+const DEFAULT_INDUSTRY = "independent business";
 const DEFAULT_SERVICES = [
   "Consultation",
   "Professional service",
   "Project support",
   "Ongoing care",
 ];
+
+type CopyConcept = {
+  headline: string;
+  servicesHeading: string;
+  aboutHeading: string;
+  contactHeading: string;
+  experienceHeading: string;
+  experienceItems: Array<{ quote: string; author: string; place: string }>;
+  fallbackServices?: string[];
+};
 
 function text(value: string | undefined, fallback: string): string {
   return value?.trim() || fallback;
@@ -37,7 +47,44 @@ function abbreviate(value: string): string {
   );
 }
 
-function createFaq(industry: string, services: string[]) {
+function serviceAreaFor(lead: Lead): string {
+  const suppliedAreas = lead.serviceAreas?.map((area) => area.trim()).filter(Boolean) ?? [];
+  if (suppliedAreas.length > 0) return suppliedAreas.join(", ");
+  const location = [lead.city?.trim(), lead.state?.trim()].filter(Boolean).join(", ");
+  return location || "your area";
+}
+
+const STANDARD_EXPERIENCE_ITEMS = [
+  {
+    quote: "Clear information from the first conversation through the next step.",
+    author: "Straightforward guidance",
+    place: "A simple way to get started",
+  },
+  {
+    quote: "Options explained in a way that makes the decision easier.",
+    author: "Practical support",
+    place: "Focused on what matters to you",
+  },
+  {
+    quote: "A service experience shaped around your goals.",
+    author: "Personal attention",
+    place: "Built for the work ahead",
+  },
+];
+
+/** Safe neutral copy only used while a server-side AI request is unavailable. */
+function getCopyConcept(industry: string): CopyConcept {
+  return {
+    headline: "A thoughtful next step starts here.",
+    servicesHeading: "How we can help",
+    aboutHeading: `Built around your ${industry.toLowerCase()} goals`,
+    contactHeading: "Let’s talk about your next step",
+    experienceHeading: "What to expect from the first conversation",
+    experienceItems: STANDARD_EXPERIENCE_ITEMS,
+  };
+}
+
+function createFaq(industry: string, services: string[], serviceArea: string) {
   const primaryService = services[0] ?? "services";
   return [
     {
@@ -52,7 +99,7 @@ function createFaq(industry: string, services: string[]) {
     {
       question: "Which areas do you serve?",
       answer:
-        "We serve our local service area and will confirm availability for your address before scheduling.",
+        `We serve ${serviceArea} and can confirm availability for your plans before scheduling.`,
     },
     {
       question: "What should I expect after I reach out?",
@@ -69,8 +116,10 @@ function createFaq(industry: string, services: string[]) {
 export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
   const name = text(lead.businessName, "Your Local Business");
   const industry = text(lead.industry, DEFAULT_INDUSTRY);
-  const services = list(lead.services, DEFAULT_SERVICES);
-  const serviceArea = list(lead.serviceAreas, ["your local area"]).join(", ");
+  const serviceType = industry;
+  const concept = getCopyConcept(industry);
+  const services = list(lead.services, concept.fallbackServices ?? DEFAULT_SERVICES);
+  const serviceArea = serviceAreaFor(lead);
   const cityAndState = [lead.city, lead.state].filter(Boolean).join(", ");
   const address = text(lead.address, cityAndState || `Serving ${serviceArea}`);
   const phone = text(lead.phone, "Call for availability");
@@ -79,11 +128,11 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
     lead.businessDescription,
     `${name} provides dependable ${industry} for customers throughout ${serviceArea}.`,
   );
-  const shortIndustry = industry.toLowerCase();
+  const shortIndustry = serviceType.toLowerCase();
   const slug = slugify(name);
   const yearsMetric = lead.yearsInBusiness
     ? { value: `${lead.yearsInBusiness}+`, label: "Years in business" }
-    : { value: "Local", label: "Service team" };
+    : { value: "Personal", label: "Guidance" };
   const ratingMetric = lead.googleRating
     ? { value: `${lead.googleRating} / 5`, label: `${lead.reviewCount ?? ""} reviews`.trim() }
     : { value: "Clear", label: "Next steps" };
@@ -92,7 +141,7 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
     brand: {
       name,
       shortName: abbreviate(name),
-      tagline: `${industry} · Serving ${serviceArea}`,
+      tagline: `${serviceType} · Serving ${serviceArea}`,
       license: text(lead.licenseNumber, "License information available on request"),
       phone,
       email,
@@ -100,9 +149,9 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
       serviceArea,
     },
     seo: {
-      title: `${name} — ${industry} in ${serviceArea}`,
+      title: `${name} — ${serviceType} in ${serviceArea}`,
       description: `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`,
-      socialTitle: `${name} — ${industry} in ${serviceArea}`,
+      socialTitle: `${name} — ${serviceType} in ${serviceArea}`,
       socialDescription: `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`,
       canonicalUrl: `https://${slug}.example/`,
     },
@@ -113,30 +162,30 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
     navigation: [
       { label: "Services", href: "#services" },
       { label: "About", href: "#about" },
-      { label: "Reviews", href: "#reviews" },
+      { label: "What to expect", href: "#reviews" },
       { label: "FAQ", href: "#faq" },
     ],
     header: { primaryCta: { label: "Request information", href: "#contact" } },
     hero: {
-      eyebrow: `${industry} · Serving ${serviceArea}`,
-      headline: `${name} makes ${shortIndustry} straightforward.`,
+      eyebrow: `${serviceType} · Serving ${serviceArea}`,
+      headline: concept.headline,
       description,
       primaryCta: { label: "Request a consultation", href: "#contact" },
       secondaryCta: { label: "Explore services", href: "#services" },
-      metrics: [yearsMetric, ratingMetric, { value: "Local", label: serviceArea }],
+      metrics: [yearsMetric, ratingMetric, { value: "Serving", label: serviceArea }],
     },
     services: {
       eyebrow: "What we offer",
-      heading: `${industry} tailored to your needs`,
+      heading: concept.servicesHeading,
       items: services.slice(0, 4).map((service, index) => ({
         number: String(index + 1).padStart(2, "0"),
         title: service,
-        body: `${service} from ${name}, with clear communication from the first conversation through the next step.`,
+        body: `${service} shaped around your goals, with clear communication from the first conversation through the next step.`,
       })),
     },
     about: {
       eyebrow: "Why choose us",
-      heading: `A local team for your ${shortIndustry} needs`,
+      heading: concept.aboutHeading,
       body: description,
       points: [
         "A clear conversation before work begins",
@@ -145,23 +194,18 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
       ],
     },
     reviews: {
-      eyebrow: "Demo content only",
-      heading: "Placeholder testimonials to replace before publishing",
-      items: [1, 2, 3].map((number) => ({
-        quote:
-          "Demo testimonial placeholder — replace this with a verified customer review before publishing.",
-        author: `Demo review ${number}`,
-        place: "Illustrative content only",
-      })),
+      eyebrow: "What to expect",
+      heading: concept.experienceHeading,
+      items: concept.experienceItems,
     },
     faq: {
       eyebrow: "Helpful details",
       heading: `Questions about ${industry}`,
-      items: createFaq(industry, services),
+      items: createFaq(serviceType, services, serviceArea),
     },
     contact: {
       eyebrow: "Get in touch",
-      heading: `Talk with ${name}`,
+      heading: concept.contactHeading,
       body: `Share a few details and the ${name} team will respond within one business day.`,
       details: [
         { label: "Phone", value: phone },

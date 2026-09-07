@@ -148,6 +148,7 @@ function Metrics({ className = "" }: { className?: string }) {
 
 function VariantHero({ direction }: VariantProps) {
   const { hero, brand, assets } = useSiteConfig();
+  const hasHeroImage = Boolean(assets.hero.src);
   if (direction === "modern")
     return (
       <section
@@ -155,7 +156,7 @@ function VariantHero({ direction }: VariantProps) {
         className="relative overflow-hidden bg-ink pb-14 pt-28 text-bone sm:pb-20 sm:pt-36"
       >
         <div className="absolute -right-24 top-24 size-[34rem] rounded-full bg-clay/25 blur-3xl" />
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 lg:grid-cols-[1.1fr_.9fr] lg:items-end">
+        <div className={`relative mx-auto grid max-w-7xl gap-10 px-6 sm:px-10 ${hasHeroImage ? "lg:grid-cols-[1.1fr_.9fr] lg:items-end" : "max-w-4xl"}`}>
           <div>
             <Reveal>
               <p className="mb-5 text-sm font-semibold tracking-[.2em] text-clay uppercase">
@@ -174,17 +175,19 @@ function VariantHero({ direction }: VariantProps) {
               </div>
             </Reveal>
           </div>
-          <Reveal delay={170}>
-            <div className="relative">
-              <SiteImage
-                kind="hero"
-                className="aspect-[4/5] w-full object-cover sm:aspect-[16/10] lg:aspect-[4/5]"
-              />
-              <div className="absolute -bottom-5 -left-5 hidden bg-clay p-6 text-bone sm:block">
-                <span className="font-display text-3xl">{brand.shortName}</span>
+          {hasHeroImage && (
+            <Reveal delay={170}>
+              <div className="relative">
+                <SiteImage
+                  kind="hero"
+                  className="aspect-[4/5] w-full object-cover sm:aspect-[16/10] lg:aspect-[4/5]"
+                />
+                <div className="absolute -bottom-5 -left-5 hidden bg-clay p-6 text-bone sm:block">
+                  <span className="font-display text-3xl">{brand.shortName}</span>
+                </div>
               </div>
-            </div>
-          </Reveal>
+            </Reveal>
+          )}
         </div>
       </section>
     );
@@ -264,7 +267,7 @@ function VariantHero({ direction }: VariantProps) {
     );
   return (
     <section id="top" className="bg-bone">
-      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 sm:px-10 sm:py-24 lg:grid-cols-2 lg:items-center">
+      <div className={`mx-auto grid max-w-7xl gap-10 px-6 py-16 sm:px-10 sm:py-24 ${hasHeroImage ? "lg:grid-cols-2 lg:items-center" : "max-w-4xl"}`}>
         <div>
           <Reveal>
             <p className="mb-5 text-sm font-semibold tracking-wide text-clay">{hero.eyebrow}</p>
@@ -278,12 +281,14 @@ function VariantHero({ direction }: VariantProps) {
             <Metrics className="mt-12 flex flex-wrap gap-x-10 gap-y-5 text-ink" />
           </Reveal>
         </div>
-        <Reveal delay={130}>
-          <SiteImage
-            kind="hero"
-            className="aspect-[5/4] w-full rounded-2xl object-cover shadow-xl shadow-ink/10"
-          />
-        </Reveal>
+        {hasHeroImage && (
+          <Reveal delay={130}>
+            <SiteImage
+              kind="hero"
+              className="aspect-[5/4] w-full rounded-2xl object-cover shadow-xl shadow-ink/10"
+            />
+          </Reveal>
+        )}
       </div>
     </section>
   );
@@ -429,11 +434,12 @@ function Points({ items, className = "" }: { items: string[]; className?: string
 }
 
 function VariantAbout({ direction }: VariantProps) {
-  const { about } = useSiteConfig();
+  const { about, assets } = useSiteConfig();
+  const hasAboutImage = Boolean(assets.about.src);
   if (direction === "modern")
     return (
       <section id="about" className="bg-sand/65">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-24 sm:px-10 sm:py-32 lg:grid-cols-12">
+        <div className={`mx-auto grid max-w-7xl gap-8 px-6 py-24 sm:px-10 sm:py-32 ${hasAboutImage ? "lg:grid-cols-12" : "max-w-4xl"}`}>
           <Reveal className="lg:col-span-5">
             <p className="text-xs font-semibold tracking-[.16em] text-clay uppercase">
               {about.eyebrow}
@@ -446,8 +452,8 @@ function VariantAbout({ direction }: VariantProps) {
               className="mt-10 space-y-4 text-sm font-medium text-ink/70"
             />
           </Reveal>
-          <Reveal delay={100} className="lg:col-span-7">
-            <SiteImage kind="about" className="aspect-[16/9] w-full object-cover" />
+          <Reveal delay={100} className={hasAboutImage ? "lg:col-span-7" : ""}>
+            {hasAboutImage && <SiteImage kind="about" className="aspect-[16/9] w-full object-cover" />}
             <p className="ml-auto mt-8 max-w-xl text-lg leading-relaxed text-ink/70">
               {about.body}
             </p>
@@ -458,10 +464,12 @@ function VariantAbout({ direction }: VariantProps) {
   if (direction === "luxury")
     return (
       <section id="about" className="bg-ink py-10 text-bone sm:py-16">
-        <div className="mx-auto grid max-w-7xl gap-12 px-6 sm:px-10 lg:grid-cols-2 lg:items-center">
-          <Reveal>
-            <SiteImage kind="about" className="aspect-[4/5] w-full object-cover grayscale" />
-          </Reveal>
+        <div className={`mx-auto grid max-w-7xl gap-12 px-6 sm:px-10 ${hasAboutImage ? "lg:grid-cols-2 lg:items-center" : "max-w-4xl"}`}>
+          {hasAboutImage && (
+            <Reveal>
+              <SiteImage kind="about" className="aspect-[4/5] w-full object-cover grayscale" />
+            </Reveal>
+          )}
           <Reveal delay={100}>
             <p className="text-xs tracking-[.28em] text-clay uppercase">{about.eyebrow}</p>
             <h2 className="mt-6 max-w-[12ch] font-display text-4xl leading-tight sm:text-6xl">
@@ -480,13 +488,15 @@ function VariantAbout({ direction }: VariantProps) {
     return (
       <section id="about" className="bg-sand/50">
         <div className="mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-28">
-          <div className="grid items-center gap-10 rounded-[3rem] bg-bone p-6 sm:p-10 md:grid-cols-2">
-            <Reveal>
-              <SiteImage
-                kind="about"
-                className="aspect-square w-full rounded-[2rem] object-cover"
-              />
-            </Reveal>
+          <div className={`grid items-center gap-10 rounded-[3rem] bg-bone p-6 sm:p-10 ${hasAboutImage ? "md:grid-cols-2" : "max-w-2xl mx-auto"}`}>
+            {hasAboutImage && (
+              <Reveal>
+                <SiteImage
+                  kind="about"
+                  className="aspect-square w-full rounded-[2rem] object-cover"
+                />
+              </Reveal>
+            )}
             <Reveal delay={100}>
               <SectionTitle eyebrow={about.eyebrow} heading={about.heading} />
               <p className="leading-relaxed text-ink/70">{about.body}</p>
@@ -519,10 +529,12 @@ function VariantAbout({ direction }: VariantProps) {
     );
   return (
     <section id="about" className="bg-bone">
-      <div className="mx-auto grid max-w-7xl gap-12 px-6 py-20 sm:px-10 sm:py-28 md:grid-cols-2 md:items-center">
-        <Reveal>
-          <SiteImage kind="about" className="aspect-[4/5] w-full rounded-xl object-cover" />
-        </Reveal>
+      <div className={`mx-auto grid max-w-7xl gap-12 px-6 py-20 sm:px-10 sm:py-28 ${hasAboutImage ? "md:grid-cols-2 md:items-center" : "max-w-4xl"}`}>
+        {hasAboutImage && (
+          <Reveal>
+            <SiteImage kind="about" className="aspect-[4/5] w-full rounded-xl object-cover" />
+          </Reveal>
+        )}
         <Reveal delay={100}>
           <SectionTitle eyebrow={about.eyebrow} heading={about.heading} />
           <p className="leading-relaxed text-ink/70">{about.body}</p>

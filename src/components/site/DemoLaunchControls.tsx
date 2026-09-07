@@ -24,7 +24,11 @@ type DemoLaunchControlsProps = {
   onSelectFont: (fontId: string) => void;
   tier: SubscriptionTier;
   onTierChange: (tier: SubscriptionTier) => void;
-  launchHref?: string;
+  launchHref?: string | undefined;
+  launchLabel?: string | undefined;
+  /** Demo owners may try every visual option before selecting a plan. */
+  allowAllPreviewOptions?: boolean;
+  initiallyExpanded?: boolean;
 };
 
 export function DemoLaunchControls({
@@ -42,8 +46,11 @@ export function DemoLaunchControls({
   tier,
   onTierChange,
   launchHref = "/launch",
+  launchLabel = "🚀 Launch Your Website",
+  allowAllPreviewOptions = false,
+  initiallyExpanded = true,
 }: DemoLaunchControlsProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const [upgradeMessage, setUpgradeMessage] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +74,7 @@ export function DemoLaunchControls({
     optionId: string,
     onSelect: () => void,
   ) {
-    if (isOptionUnlocked(tier, control, optionId)) {
+    if (allowAllPreviewOptions || isOptionUnlocked(tier, control, optionId)) {
       setUpgradeMessage("");
       onSelect();
       return;
@@ -79,7 +86,9 @@ export function DemoLaunchControls({
 
   function lockLabel(control: "font" | "visual-direction" | "color-theme", id: string) {
     const requiredTier = optionMinimumTier(control, id);
-    return isOptionUnlocked(tier, control, id) ? null : tierDefinitions[requiredTier].label;
+    return allowAllPreviewOptions || isOptionUnlocked(tier, control, id)
+      ? null
+      : tierDefinitions[requiredTier].label;
   }
 
   if (!expanded) {
@@ -141,48 +150,50 @@ export function DemoLaunchControls({
         </div>
 
         <div className="editor-settings-scroll mt-3 max-h-[min(25rem,calc(100svh-12rem))] overflow-y-auto pr-2">
-          <fieldset className="mt-3">
-            <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
-              Plan access
-            </legend>
-            <div
-              className="mt-2 grid grid-cols-3 gap-2"
-              role="radiogroup"
-              aria-label="Website plan tier"
-            >
-              {(Object.keys(tierDefinitions) as SubscriptionTier[]).map((tierId) => {
-                const selected = tierId === tier;
-                const definition = tierDefinitions[tierId];
-                return (
-                  <button
-                    key={tierId}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => {
-                      setUpgradeMessage("");
-                      onTierChange(tierId);
-                    }}
-                    className={`min-h-11 rounded-xl border px-2 py-2 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-ink bg-ink text-bone" : "border-ink/15 bg-white text-ink hover:bg-sand"}`}
-                  >
-                    <span className="block font-semibold">{definition.label}</span>
-                    <span
-                      className={`mt-0.5 block leading-snug ${selected ? "text-bone/65" : "text-ink/55"}`}
+          {!allowAllPreviewOptions && (
+            <fieldset className="mt-3">
+              <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
+                Plan access
+              </legend>
+              <div
+                className="mt-2 grid grid-cols-3 gap-2"
+                role="radiogroup"
+                aria-label="Website plan tier"
+              >
+                {(Object.keys(tierDefinitions) as SubscriptionTier[]).map((tierId) => {
+                  const selected = tierId === tier;
+                  const definition = tierDefinitions[tierId];
+                  return (
+                    <button
+                      key={tierId}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        setUpgradeMessage("");
+                        onTierChange(tierId);
+                      }}
+                      className={`min-h-11 rounded-xl border px-2 py-2 text-left text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-ink bg-ink text-bone" : "border-ink/15 bg-white text-ink hover:bg-sand"}`}
                     >
-                      {tierId === "professional"
-                        ? "Full platform access"
-                        : tierId === "growth"
-                          ? "More control"
-                          : "Essentials"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-xs leading-snug text-ink/55">
-              {tierDefinitions[tier].description}
-            </p>
-          </fieldset>
+                      <span className="block font-semibold">{definition.label}</span>
+                      <span
+                        className={`mt-0.5 block leading-snug ${selected ? "text-bone/65" : "text-ink/55"}`}
+                      >
+                        {tierId === "professional"
+                          ? "Full platform access"
+                          : tierId === "growth"
+                            ? "More control"
+                            : "Essentials"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs leading-snug text-ink/55">
+                {tierDefinitions[tier].description}
+              </p>
+            </fieldset>
+          )}
           <fieldset className="mt-3">
             <legend className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
               Visual direction
@@ -317,7 +328,7 @@ export function DemoLaunchControls({
           href={launchHref}
           className="mt-3 flex min-h-11 items-center justify-center rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition-colors hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
         >
-          🚀 Launch Your Website
+          {launchLabel}
         </a>
       </div>
     </div>

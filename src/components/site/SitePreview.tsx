@@ -28,6 +28,11 @@ export function SitePreview({
   showDemoLaunchControls = false,
   showVisualDirectionLayout = false,
   leadCaptureTarget,
+  demoLaunchHref,
+  demoLaunchLabel,
+  demoControlsInitiallyExpanded = true,
+  allowAllDemoPreviewOptions = false,
+  onDemoVisualDirectionChange,
 }: {
   config: SiteConfig;
   showDemoLaunchControls?: boolean;
@@ -35,6 +40,16 @@ export function SitePreview({
   showVisualDirectionLayout?: boolean;
   /** Enables secure lead intake only when this rendered site has a verified public target. */
   leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
+  /** Destination for the protected plan-selection flow when previewing an owned draft. */
+  demoLaunchHref?: string;
+  /** Keeps the fixed preview action clear without changing the secure checkout flow. */
+  demoLaunchLabel?: string;
+  /** Customer drafts start compact so the website remains the focus. */
+  demoControlsInitiallyExpanded?: boolean;
+  /** Lets a prospect try visual choices; server-side plan enforcement still controls launch. */
+  allowAllDemoPreviewOptions?: boolean;
+  /** Optional persistence hook for a customer-owned draft's visual direction. */
+  onDemoVisualDirectionChange?: (direction: DemoVisualDirection) => void;
 }) {
   const themes = useMemo(() => getDemoThemes(config), [config]);
   const recommendedDirection = useMemo(() => getRecommendedVisualDirection(config), [config]);
@@ -83,6 +98,7 @@ export function SitePreview({
   function selectDirection(nextDirection: DemoVisualDirection) {
     setDirectionId(nextDirection);
     window.localStorage.setItem(directionStorageKey, nextDirection);
+    onDemoVisualDirectionChange?.(nextDirection);
   }
 
   function selectFont(nextFontId: string) {
@@ -115,7 +131,7 @@ export function SitePreview({
   return (
     <SiteConfigProvider config={config}>
       <div
-        className={`${showDemoLaunchControls ? `demo-direction-${selectedDirection.id} ` : ""}min-h-screen bg-bone font-sans text-ink antialiased`}
+        className={`${showDemoLaunchControls ? `demo-direction-${selectedDirection.id} pb-24 sm:pb-28 ` : ""}min-h-screen bg-bone font-sans text-ink antialiased`}
         style={themeStyle}
       >
         {useVisualDirectionLayout ? (
@@ -149,6 +165,10 @@ export function SitePreview({
             onSelectFont={selectFont}
             tier={tier}
             onTierChange={selectTier}
+            launchHref={demoLaunchHref}
+            launchLabel={demoLaunchLabel}
+            initiallyExpanded={demoControlsInitiallyExpanded}
+            allowAllPreviewOptions={allowAllDemoPreviewOptions}
           />
         )}
       </div>

@@ -5,6 +5,8 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { createLead } from "@/data/leads";
 import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
+import { generateOwnedDraftSiteConfigWithAI } from "@/services/generate-site-config-with-ai";
+import { sourceOwnedDraftImages } from "@/services/source-images-for-site";
 import {
   getOwnedWebsite,
   saveGeneratedWebsite,
@@ -13,7 +15,7 @@ import {
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { SitePreview } from "@/components/site/SitePreview";
 import type { SiteConfig } from "@/data/site";
-import { visualStyleOptions, type VisualStyle } from "@/data/visuals";
+import type { DemoVisualDirection } from "@/data/demo-themes";
 
 type AuthState =
   | { status: "loading" }
@@ -29,6 +31,7 @@ type DraftFields = {
   email: string;
   website: string;
   description: string;
+  serviceArea: string;
   primaryColor: string;
 };
 
@@ -41,6 +44,7 @@ const initialFields: DraftFields = {
   email: "",
   website: "",
   description: "",
+  serviceArea: "",
   primaryColor: "",
 };
 
@@ -63,6 +67,8 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   const [updatingDirection, setUpdatingDirection] = useState(false);
   const getWebsite = useServerFn(getOwnedWebsite);
   const saveWebsite = useServerFn(saveGeneratedWebsite);
+  const generateAiConfig = useServerFn(generateOwnedDraftSiteConfigWithAI);
+  const sourceDraftImages = useServerFn(sourceOwnedDraftImages);
   const updateVisualDirection = useServerFn(updateOwnedWebsiteVisualDirection);
 
   useEffect(() => {
@@ -110,6 +116,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
           phone: config.brand.phone,
           email: config.brand.email,
           description: config.about.body,
+          serviceArea: config.brand.serviceArea,
           primaryColor: config.design?.primaryColor ?? "",
         }));
       })
@@ -125,7 +132,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     setFields((current) => ({ ...current, [key]: value }));
   }
 
-  async function changeVisualDirection(visualDirection: VisualStyle) {
+  async function changeVisualDirection(visualDirection: DemoVisualDirection) {
     if (!preview || !savedWebsiteId || auth.status !== "authenticated" || updatingDirection) return;
     const previousConfig = preview;
     const nextConfig = {
@@ -163,6 +170,10 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
         phone: fields.phone || undefined,
         email: fields.email || undefined,
         website: fields.website || undefined,
+        serviceAreas: fields.serviceArea
+          .split(",")
+          .map((area) => area.trim())
+          .filter(Boolean),
         businessDescription: fields.description || undefined,
         source: "customer-draft",
       });
@@ -182,9 +193,45 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
         },
       });
       if (saved instanceof Response) throw new Error("Unable to save your website draft.");
-      setPreview(config);
+      let personalizedConfig: SiteConfig = config;
+      let aiGenerated = false;
+      try {
+        const generated = await generateAiConfig({
+          data: {
+            accessToken: auth.accessToken,
+            businessId: saved.business_id,
+            websiteId: saved.id,
+            lead,
+          },
+        });
+        if (generated instanceof Response) throw new Error("AI generation was unavailable.");
+        personalizedConfig = generated as SiteConfig;
+        aiGenerated = true;
+      } catch {
+        // The secure draft is still useful when a provider is temporarily
+        // unavailable. It can be retried without losing the owner's work.
+        setNotice("Your draft was saved. Personalized AI copy is temporarily unavailable; please try again shortly.");
+      }
+      try {
+        const withImages = await sourceDraftImages({
+          data: {
+            accessToken: auth.accessToken,
+            businessId: saved.business_id,
+            websiteId: saved.id,
+            lead,
+            style: personalizedConfig.design?.visualDirection ?? "professional",
+          },
+        });
+        if (!(withImages instanceof Response)) personalizedConfig = withImages as SiteConfig;
+      } catch {
+        // The responsive image-free layouts remain complete if Pexels is
+        // temporarily unavailable or has no suitable result.
+      }
+      setPreview(personalizedConfig);
       setSavedWebsiteId(saved.id);
-      setNotice("Your private website draft is ready. It has not been published.");
+      if (aiGenerated) {
+        setNotice("Your personalized website draft is ready. It has not been published.");
+      }
       window.history.replaceState({}, "", `/draft?website=${saved.id}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to create your website draft.");
@@ -296,6 +343,16 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
               />
             </label>
             <label>
+              Service area <span>Optional</span>
+              <input
+                className="uv-input"
+                maxLength={500}
+                placeholder="e.g. Elkhart County, Indiana"
+                value={fields.serviceArea}
+                onChange={(event) => update("serviceArea", event.target.value)}
+              />
+            </label>
+            <label>
               Primary color <span>Optional, #RRGGBB</span>
               <input
                 className="uv-input"
@@ -338,31 +395,17 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       </main>
       {preview ? (
         <section className="uv-draft-preview">
-          <div className="uv-draft-preview-toolbar">
-            <div>
-              <p className="uv-eyebrow">Visual direction</p>
-              <p>Try a different layout for your private preview.</p>
-            </div>
-            <div className="uv-draft-direction-options" role="radiogroup" aria-label="Visual direction">
-              {visualStyleOptions.map((style) => {
-                const selected = (preview.design?.visualDirection ?? "professional") === style;
-                return (
-                  <button
-                    key={style}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    disabled={updatingDirection}
-                    onClick={() => void changeVisualDirection(style)}
-                    className={selected ? "is-selected" : undefined}
-                  >
-                    {style}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <SitePreview config={preview} showVisualDirectionLayout />
+          <SitePreview
+            config={preview}
+            showDemoLaunchControls
+            demoControlsInitiallyExpanded={false}
+            allowAllDemoPreviewOptions
+            demoLaunchHref={savedWebsiteId ? `/launch?website=${savedWebsiteId}` : "/launch"}
+            demoLaunchLabel="Choose a plan & go live"
+            onDemoVisualDirectionChange={(direction) => {
+              if (!updatingDirection) void changeVisualDirection(direction);
+            }}
+          />
         </section>
       ) : null}
     </div>
