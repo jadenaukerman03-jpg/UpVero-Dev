@@ -275,7 +275,7 @@ export const listRegistryCandidates = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: candidates, error } = await client
       .from("registry_candidates")
-      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at))), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
+      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at)), prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at)), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
       .eq("registry_businesses.registry_id", registry.id)
       .order("preliminary_score", { referencedTable: "registry_businesses", ascending: false })
       .limit(data.limit);
@@ -681,6 +681,160 @@ const outreachStageSchema = z.enum([
   "lost",
   "do_not_contact",
 ]);
+
+const manualSmsStageSchema = z.enum(["ready", "contacted", "replied", "meeting", "won", "lost"]);
+
+function normalizeUsPhone(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  if (trimmed.startsWith("+") && digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  respond(400, "Enter a valid U.S. phone number, including its area code.");
+}
+
+function manualSmsCopy(businessName: string, previewUrl: string) {
+  return `Hi ${businessName} team — I’m with Upvero. I made a private website preview for your business based on publicly available information: ${previewUrl}\n\nThere is no obligation. Reply STOP if you do not want future texts.`;
+}
+
+const smsDraftSchema = accessSchema.extend({
+  registryId: z.string().uuid(),
+  candidateId: z.string().uuid(),
+});
+
+/** Creates a copy-ready SMS only. It never contacts a phone number. */
+export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
+  .validator((data: unknown) => smsDraftSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: candidate, error: candidateError } = await client
+      .from("registry_candidates")
+      .select("id, registry_businesses!inner(name, registry_id)")
+      .eq("id", data.candidateId)
+      .eq("review_status", "demo_complete")
+      .eq("registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (candidateError || !candidate) respond(404, "This completed demo is unavailable.");
+    const { data: demo, error: demoError } = await client
+      .from("prospect_demos")
+      .select(
+        "id, preview_token, prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at)",
+      )
+      .eq("registry_candidate_id", candidate.id)
+      .eq("created_by", user.id)
+      .eq("status", "ready")
+      .maybeSingle();
+    if (demoError || !demo) respond(404, "This private demo is unavailable.");
+    const existing = (demo.prospect_sms_drafts ?? [])[0];
+    if (existing) return existing;
+    const business = candidate.registry_businesses as unknown as { name: string };
+    const { data: draft, error: insertError } = await client
+      .from("prospect_sms_drafts")
+      .insert({
+        prospect_demo_id: demo.id,
+        created_by: user.id,
+        body: manualSmsCopy(business.name, `${previewOrigin()}/demo/${demo.preview_token}`),
+      })
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at")
+      .single();
+    if (insertError || !draft) throw new Error("Unable to prepare the SMS draft.");
+    return draft;
+  });
+
+export const saveProspectSmsDraft = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    smsDraftSchema
+      .extend({
+        draftId: z.string().uuid(),
+        recipientPhone: z.string().trim().max(40).optional(),
+        body: z.string().trim().min(1).max(1_600),
+        stage: manualSmsStageSchema,
+        notes: z.string().trim().max(2_000),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: draft, error: lookupError } = await client
+      .from("prospect_sms_drafts")
+      .select("id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .eq("id", data.draftId)
+      .eq("created_by", user.id)
+      .eq("prospect_demos.created_by", user.id)
+      .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (lookupError || !draft) respond(404, "This SMS draft is unavailable.");
+    const normalizedPhone = normalizeUsPhone(data.recipientPhone);
+    if (normalizedPhone) {
+      const { data: suppression, error: suppressionError } = await client
+        .from("prospect_sms_suppressions")
+        .select("recipient_phone_normalized")
+        .eq("recipient_phone_normalized", normalizedPhone)
+        .maybeSingle();
+      if (suppressionError) throw new Error("Unable to verify this phone number.");
+      if (suppression) respond(409, "This phone number is permanently marked do-not-contact.");
+    }
+    const timestamp = new Date().toISOString();
+    const { data: saved, error: updateError } = await client
+      .from("prospect_sms_drafts")
+      .update({
+        recipient_phone: data.recipientPhone || null,
+        recipient_phone_normalized: normalizedPhone,
+        body: data.body,
+        stage: data.stage,
+        notes: data.notes,
+        ...(data.stage === "contacted" ? { last_contacted_at: timestamp } : {}),
+        ...(data.stage === "replied" ? { replied_at: timestamp } : {}),
+      })
+      .eq("id", draft.id)
+      .eq("created_by", user.id)
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at")
+      .single();
+    if (updateError || !saved) throw new Error("Unable to save the SMS draft.");
+    return saved;
+  });
+
+/** Permanently suppresses a manually reviewed SMS recipient. It never sends a reply. */
+export const markProspectSmsDoNotContact = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    smsDraftSchema.extend({ draftId: z.string().uuid(), reason: z.string().trim().min(1).max(500) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: draft, error: lookupError } = await client
+      .from("prospect_sms_drafts")
+      .select("id, recipient_phone_normalized, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .eq("id", data.draftId)
+      .eq("created_by", user.id)
+      .eq("prospect_demos.created_by", user.id)
+      .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (lookupError || !draft) respond(404, "This SMS draft is unavailable.");
+    if (!draft.recipient_phone_normalized) respond(400, "Save a valid phone number before marking it do-not-contact.");
+    const { error: suppressionError } = await client.from("prospect_sms_suppressions").upsert(
+      {
+        recipient_phone_normalized: draft.recipient_phone_normalized,
+        created_by: user.id,
+        source_draft_id: draft.id,
+        reason: data.reason,
+      },
+      { onConflict: "recipient_phone_normalized", ignoreDuplicates: true },
+    );
+    if (suppressionError) throw new Error("Unable to save the do-not-contact preference.");
+    const { data: saved, error: updateError } = await client
+      .from("prospect_sms_drafts")
+      .update({ stage: "do_not_contact" })
+      .eq("id", draft.id)
+      .eq("created_by", user.id)
+      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at")
+      .single();
+    if (updateError || !saved) throw new Error("Unable to update this SMS draft.");
+    return saved;
+  });
 
 /** Records a manual sales outcome only; no provider or delivery API is invoked. */
 export const saveProspectOutreachTracking = createServerFn({ method: "POST" })

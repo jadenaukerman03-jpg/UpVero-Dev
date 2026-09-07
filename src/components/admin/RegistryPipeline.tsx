@@ -1,4 +1,4 @@
-import { Clipboard, ExternalLink, FileSpreadsheet, LoaderCircle, Mail, Search, Send, Sparkles, Upload } from "lucide-react";
+import { Clipboard, ExternalLink, FileSpreadsheet, LoaderCircle, Mail, Search, Send, Smartphone, Sparkles, Upload } from "lucide-react";
 import { useState, type ChangeEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -13,9 +13,12 @@ import {
   prepareProspectOutreachDraft,
   processQueuedRegistryResearch,
   processNextProspectDemo,
+  markProspectSmsDoNotContact,
+  prepareProspectSmsDraft,
   queueCandidateAction,
   saveProspectOutreachDraft,
   saveProspectOutreachTracking,
+  saveProspectSmsDraft,
 } from "@/services/admin-registry";
 
 type ParsedRegistry = { sourceName: string; headers: string[]; rows: Record<string, string>[] };
@@ -29,6 +32,7 @@ type Candidate = {
     preview_token: string;
     status: string;
     prospect_outreach_drafts?: Array<OutreachDraft>;
+    prospect_sms_drafts?: Array<SmsDraft>;
   }>;
   registry_businesses: {
     id: string;
@@ -59,6 +63,18 @@ type OutreachTracking = {
 };
 
 type OutreachStage = "ready" | "contacted" | "replied" | "meeting" | "won" | "lost" | "do_not_contact";
+
+type SmsStage = OutreachStage;
+
+type SmsDraft = {
+  id: string;
+  recipient_phone: string | null;
+  body: string;
+  stage: SmsStage;
+  notes: string;
+  last_contacted_at: string | null;
+  replied_at: string | null;
+};
 
 type PipelineSummary = {
   candidates: Record<string, number>;
@@ -307,6 +323,122 @@ function OutreachDraftEditor({ candidate, registryId }: { candidate: Candidate; 
   );
 }
 
+function SmsDraftEditor({ candidate, registryId }: { candidate: Candidate; registryId: string }) {
+  const demo = candidate.prospect_demos?.find((item) => item.status === "ready");
+  const [draft, setDraft] = useState<SmsDraft | null>(demo?.prospect_sms_drafts?.[0] ?? null);
+  const [working, setWorking] = useState(false);
+  const [notice, setNotice] = useState("");
+  const prepareDraft = useServerFn(prepareProspectSmsDraft);
+  const saveDraft = useServerFn(saveProspectSmsDraft);
+  const markDoNotContact = useServerFn(markProspectSmsDoNotContact);
+
+  if (!demo) return null;
+
+  async function getSessionAccessToken() {
+    const { data } = await createBrowserSupabaseClient().auth.getSession();
+    if (!data.session) throw new Error("Your admin session has expired. Please sign in again.");
+    return data.session.access_token;
+  }
+
+  async function prepare() {
+    setWorking(true);
+    try {
+      const accessToken = await getSessionAccessToken();
+      const result = await prepareDraft({ data: { accessToken, registryId, candidateId: candidate.id } });
+      setDraft(result as SmsDraft);
+      setNotice("Copy-ready text prepared. Upvero has not sent anything.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to prepare the SMS draft.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function save() {
+    if (!draft || draft.stage === "do_not_contact") return;
+    setWorking(true);
+    try {
+      const accessToken = await getSessionAccessToken();
+      const result = await saveDraft({
+        data: {
+          accessToken,
+          registryId,
+          candidateId: candidate.id,
+          draftId: draft.id,
+          recipientPhone: draft.recipient_phone || undefined,
+          body: draft.body,
+          stage: draft.stage,
+          notes: draft.notes,
+        },
+      });
+      setDraft(result as SmsDraft);
+      setNotice("Manual SMS draft saved. Upvero has not sent anything.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to save the SMS draft.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function copy() {
+    if (!draft) return;
+    try {
+      await navigator.clipboard.writeText(draft.body);
+      setNotice("Text copied. Send it yourself only after reviewing it.");
+    } catch {
+      setNotice("Copy was unavailable. Select the text manually to copy it.");
+    }
+  }
+
+  async function suppress() {
+    if (!draft || draft.stage === "do_not_contact") return;
+    setWorking(true);
+    try {
+      const accessToken = await getSessionAccessToken();
+      const result = await markDoNotContact({
+        data: {
+          accessToken,
+          registryId,
+          candidateId: candidate.id,
+          draftId: draft.id,
+          reason: "Manual administrator do-not-contact action",
+        },
+      });
+      setDraft(result as SmsDraft);
+      setNotice("This number is permanently marked do-not-contact. No text was sent.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to mark this number do-not-contact.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  if (!draft) {
+    return <p><button type="button" className="uv-admin-demo-link" disabled={working} onClick={() => void prepare()}><Smartphone size={14} /> Prepare personal text</button>{notice ? <span className="uv-admin-inline-notice">{notice}</span> : null}</p>;
+  }
+
+  if (draft.stage === "do_not_contact") {
+    return <section className="uv-admin-outreach-draft"><p className="uv-notice" role="status"><strong>SMS blocked.</strong> This number is permanently marked do-not-contact and cannot be used for future SMS drafts.</p></section>;
+  }
+
+  return (
+    <section className="uv-admin-outreach-draft">
+      <p><strong>Manual SMS draft</strong> — review and copy this text yourself; Upvero will never send it.</p>
+      <label>Recipient phone (optional)<input className="uv-input" type="tel" inputMode="tel" autoComplete="tel" value={draft.recipient_phone ?? ""} onChange={(event) => setDraft((current) => current ? { ...current, recipient_phone: event.target.value } : current)} /></label>
+      <label>Text message<textarea className="uv-input" rows={6} value={draft.body} maxLength={1600} onChange={(event) => setDraft((current) => current ? { ...current, body: event.target.value } : current)} /></label>
+      <div className="uv-admin-actions"><button type="button" className="uv-button uv-button-secondary" disabled={working} onClick={() => void save()}>Save SMS draft</button><button type="button" className="uv-button uv-button-ghost" disabled={!draft.recipient_phone} onClick={() => void copy()}><Clipboard size={15} /> Copy text</button></div>
+      {!draft.recipient_phone ? <p className="uv-admin-inline-notice">Add a phone number before copying so Upvero can honor a future do-not-contact request.</p> : null}
+      <div className="uv-admin-outreach-tracking">
+        <p><strong>Manual SMS status</strong></p>
+        <label>Outcome<select className="uv-input" value={draft.stage} onChange={(event) => setDraft((current) => current ? { ...current, stage: event.target.value as SmsStage } : current)}><option value="ready">Ready to text</option><option value="contacted">Texted manually</option><option value="replied">Replied</option><option value="meeting">Meeting</option><option value="won">Won</option><option value="lost">Lost</option></select></label>
+        <label>Private notes<textarea className="uv-input" rows={3} maxLength={2000} value={draft.notes} onChange={(event) => setDraft((current) => current ? { ...current, notes: event.target.value } : current)} /></label>
+        <div className="uv-admin-actions"><button type="button" className="uv-button uv-button-ghost" disabled={working} onClick={() => void save()}>Save SMS status</button><button type="button" className="uv-button uv-button-ghost" disabled={working || !draft.recipient_phone} onClick={() => void suppress()}>Mark phone do-not-contact</button></div>
+      </div>
+      {notice ? <p className="uv-admin-inline-notice" role="status">{notice}</p> : null}
+    </section>
+  );
+}
+
 function PipelineSummaryCards({ summary }: { summary: PipelineSummary | undefined }) {
   if (!summary) return null;
   const metrics = [
@@ -463,7 +595,7 @@ export function RegistryPipeline() {
         {parsed ? <div className="uv-admin-import-card"><label>Target industry<input className="uv-input" value={targetIndustry} onChange={(event) => setTargetIndustry(event.target.value)} /></label><p>{parsed.rows.length.toLocaleString()} rows detected. Mapping can be adjusted before import.</p><div className="uv-admin-mapping">{Object.keys(fieldAliases).map((field) => <label key={field}>{field}<select className="uv-input" value={mapping[field] ?? ""} onChange={(event) => setMapping((current) => ({ ...current, [field]: event.target.value }))}><option value="">Not provided</option>{parsed.headers.map((header) => <option key={header} value={header}>{header}</option>)}</select></label>)}</div><button type="button" className="uv-button uv-button-primary" disabled={busy} onClick={() => void startImport()}>{busy ? <><LoaderCircle className="animate-spin" size={16} /> Importing…</> : <><FileSpreadsheet size={16} /> Import and score registry</>}</button></div> : null}
         {progress ? <p className="uv-notice" role="status">{progress}</p> : null}
         {registryId ? <PipelineSummaryCards summary={summary} /> : null}
-        {registryId ? <section className="uv-admin-shortlist"><div><p className="uv-eyebrow">Review shortlist</p><h3>Highest preliminary scores</h3></div><div className="uv-admin-actions"><button type="button" className="uv-button uv-button-secondary" disabled={busy || selected.length === 0} onClick={() => void queue("research")}>Queue research ({selected.length})</button><button type="button" className="uv-button uv-button-primary" disabled={busy || selected.length === 0} onClick={() => void queue("demo")}>Queue demos ({selected.length})</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void researchNextBatch()}><Search size={16} /> Process next research batch</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void generateApprovedDemo()}><Sparkles size={16} /> Generate next approved demo</button></div><div className="uv-admin-candidates">{candidates.map((candidate) => <article key={candidate.id}><label><input type="checkbox" checked={selected.includes(candidate.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id))} /><span className="uv-admin-score">{candidate.registry_businesses.preliminary_score}/100</span></label><div><h4>{candidate.registry_businesses.name}</h4><p>{[candidate.registry_businesses.city, candidate.registry_businesses.state, candidate.registry_businesses.industry].filter(Boolean).join(" · ") || "Registry details incomplete"}</p><ul>{candidate.registry_businesses.preliminary_reasons.map((reason, index) => <li key={`${reason.text}-${index}`}>{reason.kind === "confirmed" ? "Confirmed" : "Estimate"}: {reason.text}</li>)}</ul><p>Review: {candidate.review_status.replaceAll("_", " ")} · Sources: {candidate.research_source_count}{candidate.last_research_error ? ` · ${candidate.last_research_error}` : ""}</p>{candidate.prospect_demos?.[0]?.status === "ready" ? <><p><a className="uv-admin-demo-link" href={`/demo/${candidate.prospect_demos[0].preview_token}`} target="_blank" rel="noreferrer">Open private preview <ExternalLink size={14} /></a></p><OutreachDraftEditor candidate={candidate} registryId={registryId} /></> : null}{candidate.research_result?.sources?.length ? <ul className="uv-admin-sources">{candidate.research_result.sources.slice(0, 3).map((source, index) => <li key={`${source.sourceUrl}-${index}`}>{source.sourceUrl ? <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.pageTitle || source.sourceUrl}</a> : "Source URL unavailable"}{source.rawFindings ? ` — ${source.rawFindings}` : ""}</li>)}</ul> : null}</div></article>)}</div>{jobs.length ? <div className="uv-admin-jobs"><h4>Recent processing jobs</h4>{jobs.map((job) => <p key={job.id}>{job.job_type.replaceAll("_", " ")} · {job.status} · attempt {job.attempts}{job.result?.remaining ? ` · ${job.result.remaining} remaining` : ""}{job.last_error ? ` · ${job.last_error}` : ""}</p>)}</div> : null}<p className="uv-admin-queue-note"><Send size={15} /> Demos are generated only when you explicitly queue candidates and click “Generate next approved demo.” Nothing is sent automatically.</p></section> : null}
+        {registryId ? <section className="uv-admin-shortlist"><div><p className="uv-eyebrow">Review shortlist</p><h3>Highest preliminary scores</h3></div><div className="uv-admin-actions"><button type="button" className="uv-button uv-button-secondary" disabled={busy || selected.length === 0} onClick={() => void queue("research")}>Queue research ({selected.length})</button><button type="button" className="uv-button uv-button-primary" disabled={busy || selected.length === 0} onClick={() => void queue("demo")}>Queue demos ({selected.length})</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void researchNextBatch()}><Search size={16} /> Process next research batch</button><button type="button" className="uv-button uv-button-ghost" disabled={busy} onClick={() => void generateApprovedDemo()}><Sparkles size={16} /> Generate next approved demo</button></div><div className="uv-admin-candidates">{candidates.map((candidate) => <article key={candidate.id}><label><input type="checkbox" checked={selected.includes(candidate.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, candidate.id] : current.filter((id) => id !== candidate.id))} /><span className="uv-admin-score">{candidate.registry_businesses.preliminary_score}/100</span></label><div><h4>{candidate.registry_businesses.name}</h4><p>{[candidate.registry_businesses.city, candidate.registry_businesses.state, candidate.registry_businesses.industry].filter(Boolean).join(" · ") || "Registry details incomplete"}</p><ul>{candidate.registry_businesses.preliminary_reasons.map((reason, index) => <li key={`${reason.text}-${index}`}>{reason.kind === "confirmed" ? "Confirmed" : "Estimate"}: {reason.text}</li>)}</ul><p>Review: {candidate.review_status.replaceAll("_", " ")} · Sources: {candidate.research_source_count}{candidate.last_research_error ? ` · ${candidate.last_research_error}` : ""}</p>{candidate.prospect_demos?.[0]?.status === "ready" ? <><p><a className="uv-admin-demo-link" href={`/demo/${candidate.prospect_demos[0].preview_token}`} target="_blank" rel="noreferrer">Open private preview <ExternalLink size={14} /></a></p><OutreachDraftEditor candidate={candidate} registryId={registryId} /><SmsDraftEditor candidate={candidate} registryId={registryId} /></> : null}{candidate.research_result?.sources?.length ? <ul className="uv-admin-sources">{candidate.research_result.sources.slice(0, 3).map((source, index) => <li key={`${source.sourceUrl}-${index}`}>{source.sourceUrl ? <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.pageTitle || source.sourceUrl}</a> : "Source URL unavailable"}{source.rawFindings ? ` — ${source.rawFindings}` : ""}</li>)}</ul> : null}</div></article>)}</div>{jobs.length ? <div className="uv-admin-jobs"><h4>Recent processing jobs</h4>{jobs.map((job) => <p key={job.id}>{job.job_type.replaceAll("_", " ")} · {job.status} · attempt {job.attempts}{job.result?.remaining ? ` · ${job.result.remaining} remaining` : ""}{job.last_error ? ` · ${job.last_error}` : ""}</p>)}</div> : null}<p className="uv-admin-queue-note"><Send size={15} /> Demos are generated only when you explicitly queue candidates and click “Generate next approved demo.” Nothing is sent automatically.</p></section> : null}
       </div>
     </section>
   );
