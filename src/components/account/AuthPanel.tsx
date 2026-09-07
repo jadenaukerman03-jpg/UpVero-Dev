@@ -41,7 +41,9 @@ export function AuthPanel() {
         : await client.auth.signUp({
             email,
             password,
-            options: { emailRedirectTo: `${window.location.origin}/account` },
+            options: {
+              emailRedirectTo: `${window.location.origin}/account?next=${encodeURIComponent(requestedDestination())}`,
+            },
           });
     setBusy(false);
     if (result.error) {

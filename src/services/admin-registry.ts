@@ -526,9 +526,13 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
           { registry_candidate_id: candidate.id, created_by: user.id, status: "ready", site_config: config, generated_at: new Date().toISOString(), last_error: null },
           { onConflict: "registry_candidate_id" },
         )
-        .select("preview_token")
+        .select("id, preview_token")
         .single();
       if (demoError || !demo) throw new Error("Unable to save the private demo.");
+      const { error: crmError } = await client
+        .from("prospect_crm_records")
+        .upsert({ prospect_demo_id: demo.id, created_by: user.id }, { onConflict: "prospect_demo_id", ignoreDuplicates: true });
+      if (crmError) throw new Error("Unable to create the private-demo CRM record.");
       await client.from("registry_candidates").update({ review_status: "demo_complete" }).eq("id", candidate.id);
       await client
         .from("registry_processing_jobs")
@@ -561,7 +565,7 @@ export const getPrivateProspectDemo = createServerFn({ method: "GET" })
     const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
     const { data: demo, error } = await createSupabaseAdminClient()
       .from("prospect_demos")
-      .select("site_config, status, expires_at")
+      .select("site_config, status, expires_at, claim_token, claim_expires_at, claimed_by")
       .eq("preview_token", data.token)
       .eq("status", "ready")
       .maybeSingle();
@@ -569,7 +573,13 @@ export const getPrivateProspectDemo = createServerFn({ method: "GET" })
       return { config: null };
     const config = siteConfigSchema.safeParse(demo.site_config);
     if (!config.success) return { config: null };
-    return { config: config.data };
+    return {
+      config: config.data,
+      claimToken:
+        !demo.claimed_by && (!demo.claim_expires_at || new Date(demo.claim_expires_at) > new Date())
+          ? demo.claim_token
+          : null,
+    };
   });
 
 function previewOrigin() {
