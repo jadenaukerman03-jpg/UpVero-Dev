@@ -5,12 +5,15 @@ import { Reveal } from "@/components/Reveal";
 import type { DemoVisualDirection } from "@/data/demo-themes";
 import { useSiteConfig } from "@/data/site-config-context";
 
-import { Contact } from "./Contact";
+import { Contact, type WebsiteLeadCaptureTarget } from "./Contact";
 import { Faq } from "./Faq";
 import { Footer } from "./Footer";
 import { Testimonials } from "./Testimonials";
 
-type VariantProps = { direction: DemoVisualDirection };
+type VariantProps = {
+  direction: DemoVisualDirection;
+  leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
+};
 
 function Brand({ light = false }: { light?: boolean }) {
   const { brand } = useSiteConfig();
@@ -23,7 +26,9 @@ function Brand({ light = false }: { light?: boolean }) {
       >
         {brand.shortName}
       </span>
-      <span className={`font-display text-lg font-semibold tracking-tight ${light ? "text-bone" : "text-ink"}`}>
+      <span
+        className={`font-display text-lg font-semibold tracking-tight ${light ? "text-bone" : "text-ink"}`}
+      >
         {brand.name}
       </span>
     </a>
@@ -531,19 +536,19 @@ function VariantAbout({ direction }: VariantProps) {
   );
 }
 
-function OrderedSections({ direction }: VariantProps) {
+function OrderedSections({ direction, leadCaptureTarget }: VariantProps) {
   const sections: Record<DemoVisualDirection, ReactNode[]> = {
     professional: [
       <VariantServices key="services" direction={direction} />,
       <VariantAbout key="about" direction={direction} />,
       <Testimonials key="reviews" />,
       <Faq key="faq" />,
-      <Contact key="contact" />,
+      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
     ],
     modern: [
       <VariantServices key="services" direction={direction} />,
       <VariantAbout key="about" direction={direction} />,
-      <Contact key="contact" />,
+      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
       <Testimonials key="reviews" />,
       <Faq key="faq" />,
     ],
@@ -551,7 +556,7 @@ function OrderedSections({ direction }: VariantProps) {
       <VariantAbout key="about" direction={direction} />,
       <VariantServices key="services" direction={direction} />,
       <Testimonials key="reviews" />,
-      <Contact key="contact" />,
+      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
       <Faq key="faq" />,
     ],
     friendly: [
@@ -559,12 +564,12 @@ function OrderedSections({ direction }: VariantProps) {
       <Testimonials key="reviews" />,
       <VariantAbout key="about" direction={direction} />,
       <Faq key="faq" />,
-      <Contact key="contact" />,
+      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
     ],
     minimal: [
       <VariantServices key="services" direction={direction} />,
       <VariantAbout key="about" direction={direction} />,
-      <Contact key="contact" />,
+      <Contact key="contact" leadCaptureTarget={leadCaptureTarget} />,
       <Faq key="faq" />,
       <Testimonials key="reviews" />,
     ],
@@ -572,13 +577,13 @@ function OrderedSections({ direction }: VariantProps) {
   return <>{sections[direction]}</>;
 }
 
-export function VisualDirectionSite({ direction }: VariantProps) {
+export function VisualDirectionSite({ direction, leadCaptureTarget }: VariantProps) {
   return (
     <div className={`visual-direction visual-direction-${direction}`}>
       <VariantHeader direction={direction} />
       <main>
         <VariantHero direction={direction} />
-        <OrderedSections direction={direction} />
+        <OrderedSections direction={direction} leadCaptureTarget={leadCaptureTarget} />
       </main>
       <Footer />
     </div>

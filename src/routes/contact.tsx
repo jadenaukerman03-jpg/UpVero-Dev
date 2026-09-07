@@ -13,9 +13,11 @@ function ContactPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const supportEmail = import.meta.env["VITE_UPVERO_SUPPORT_EMAIL"]?.trim();
 
   function sendEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!supportEmail) return;
     const subject = `Upvero question from ${name.trim() || "a visitor"}`;
     const body = [
       `Name: ${name.trim() || "Not provided"}`,
@@ -23,7 +25,7 @@ function ContactPage() {
       "",
       message.trim(),
     ].join("\n");
-    window.location.href = `mailto:example@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:${encodeURIComponent(supportEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   return (
@@ -68,17 +70,27 @@ function ContactPage() {
             <p className="uv-eyebrow">Questions for Upvero?</p>
             <h2>Send us a message.</h2>
             <p>
-              Tell us what you need help with. Submitting this form opens an email addressed to
-              our temporary contact inbox.
+              Tell us what you need help with. Submitting this form opens a new message addressed to
+              the Upvero support inbox.
             </p>
-            <a className="uv-text-link" href="mailto:example@gmail.com">
-              example@gmail.com
-            </a>
+            {supportEmail ? (
+              <a className="uv-text-link" href={`mailto:${supportEmail}`}>
+                {supportEmail}
+              </a>
+            ) : (
+              <p className="uv-notice" role="status">
+                The Upvero support inbox is being configured. Please check back shortly.
+              </p>
+            )}
           </div>
           <form className="uv-contact-message-form" onSubmit={sendEmail}>
             <label>
               Your name
-              <input className="uv-input" value={name} onChange={(event) => setName(event.target.value)} />
+              <input
+                className="uv-input"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
             <label>
               Your email
@@ -100,7 +112,7 @@ function ContactPage() {
                 onChange={(event) => setMessage(event.target.value)}
               />
             </label>
-            <button type="submit" className="uv-button uv-button-primary">
+            <button type="submit" className="uv-button uv-button-primary" disabled={!supportEmail}>
               <Mail size={16} /> Email Upvero
             </button>
           </form>

@@ -1,18 +1,51 @@
 import { useState, type FormEvent } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useSiteConfig } from "@/data/site-config-context";
 import { Reveal } from "@/components/Reveal";
 import { CheckCircle2 } from "lucide-react";
+import { submitWebsiteContactLead } from "@/services/website-contact-leads";
 
 const inputClass =
   "mt-1.5 w-full rounded-lg bg-bone px-4 py-3 text-sm text-ink ring-1 ring-ink/10 placeholder:text-ink/35 focus:ring-2 focus:ring-clay focus:outline-none";
 
-export function Contact() {
-  const [sent, setSent] = useState(false);
-  const { contact, leadHandling } = useSiteConfig();
+export type WebsiteLeadCaptureTarget =
+  { kind: "private_demo"; token: string } | { kind: "published_website"; websiteId: string };
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+export function Contact({
+  leadCaptureTarget,
+}: {
+  leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
+}) {
+  const [sent, setSent] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
+  const { contact, leadHandling } = useSiteConfig();
+  const submitLead = useServerFn(submitWebsiteContactLead);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSent(true);
+    setSubmissionError("");
+    if (!leadCaptureTarget) {
+      setSubmissionError("This contact form is not accepting inquiries yet.");
+      return;
+    }
+
+    const values = new FormData(e.currentTarget);
+    try {
+      const result = await submitLead({
+        data: {
+          target: leadCaptureTarget,
+          name: String(values.get("name") ?? ""),
+          contactMethod: String(values.get("contact") ?? ""),
+          service: String(values.get("service") ?? ""),
+          notes: String(values.get("notes") ?? ""),
+          website: String(values.get("website") ?? ""),
+        },
+      });
+      if (result instanceof Response) throw new Error("The inquiry was rejected.");
+      setSent(true);
+    } catch {
+      setSubmissionError("We could not send your message. Please try again shortly.");
+    }
   }
 
   return (
@@ -49,6 +82,16 @@ export function Contact() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
+                  <div className="sr-only" aria-hidden="true">
+                    <label htmlFor="website">Website</label>
+                    <input
+                      id="website"
+                      name="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                    />
+                  </div>
                   <div>
                     <label htmlFor="name" className="text-xs font-medium tracking-wide text-ink/70">
                       {leadHandling.form.name.label}
@@ -112,6 +155,11 @@ export function Contact() {
                   >
                     {leadHandling.form.submitLabel}
                   </button>
+                  {submissionError ? (
+                    <p className="text-sm leading-relaxed text-red-700" role="alert">
+                      {submissionError}
+                    </p>
+                  ) : null}
                 </form>
               )}
             </div>

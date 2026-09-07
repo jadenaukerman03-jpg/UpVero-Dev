@@ -21,16 +21,20 @@ import { Services } from "./Services";
 import { Testimonials } from "./Testimonials";
 import { DemoLaunchControls } from "./DemoLaunchControls";
 import { VisualDirectionSite } from "./VisualDirectionSite";
+import type { WebsiteLeadCaptureTarget } from "./Contact";
 
 export function SitePreview({
   config,
   showDemoLaunchControls = false,
   showVisualDirectionLayout = false,
+  leadCaptureTarget,
 }: {
   config: SiteConfig;
   showDemoLaunchControls?: boolean;
   /** Renders the selected direction's full layout without exposing launch controls. */
   showVisualDirectionLayout?: boolean;
+  /** Enables secure lead intake only when this rendered site has a verified public target. */
+  leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
 }) {
   const themes = useMemo(() => getDemoThemes(config), [config]);
   const recommendedDirection = useMemo(() => getRecommendedVisualDirection(config), [config]);
@@ -115,7 +119,7 @@ export function SitePreview({
         style={themeStyle}
       >
         {useVisualDirectionLayout ? (
-          <VisualDirectionSite direction={directionId} />
+          <VisualDirectionSite direction={directionId} leadCaptureTarget={leadCaptureTarget} />
         ) : (
           <>
             <Header />
@@ -125,7 +129,7 @@ export function SitePreview({
               <About />
               <Testimonials />
               <Faq />
-              <Contact />
+              <Contact leadCaptureTarget={leadCaptureTarget} />
             </main>
             <Footer />
           </>

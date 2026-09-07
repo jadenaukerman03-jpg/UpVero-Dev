@@ -565,10 +565,10 @@ export const getPrivateProspectDemo = createServerFn({ method: "GET" })
       .eq("status", "ready")
       .maybeSingle();
     if (error || !demo || (demo.expires_at && new Date(demo.expires_at) <= new Date()))
-      respond(404, "This private preview is unavailable.");
+      return { config: null };
     const config = siteConfigSchema.safeParse(demo.site_config);
-    if (!config.success) respond(404, "This private preview is unavailable.");
-    return config.data;
+    if (!config.success) return { config: null };
+    return { config: config.data };
   });
 
 function previewOrigin() {

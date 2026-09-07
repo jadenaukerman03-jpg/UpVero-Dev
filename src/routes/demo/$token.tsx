@@ -20,7 +20,10 @@ function PrivateProspectDemoRoute() {
     let active = true;
     void loadDemo({ data: { token } })
       .then((result) => {
-        if (active) setConfig(result as SiteConfig);
+        if (!active) return;
+        const loaded = result as { config: SiteConfig | null };
+        if (loaded.config) setConfig(loaded.config);
+        else setUnavailable(true);
       })
       .catch(() => {
         if (active) setUnavailable(true);
@@ -34,9 +37,13 @@ function PrivateProspectDemoRoute() {
     return (
       <main className="grid min-h-screen place-items-center bg-stone-100 px-6 text-center text-stone-900">
         <div className="max-w-md rounded-2xl border border-stone-300 bg-white p-8 shadow-sm">
-          <p className="text-sm font-medium uppercase tracking-[0.18em] text-stone-500">Upvero private preview</p>
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-stone-500">
+            Upvero private preview
+          </p>
           <h1 className="mt-3 text-2xl font-semibold">This preview is unavailable.</h1>
-          <p className="mt-3 text-sm leading-6 text-stone-600">The link may be incomplete, expired, or no longer active.</p>
+          <p className="mt-3 text-sm leading-6 text-stone-600">
+            The link may be incomplete, expired, or no longer active.
+          </p>
         </div>
       </main>
     );
@@ -50,5 +57,11 @@ function PrivateProspectDemoRoute() {
     );
   }
 
-  return <SitePreview config={config} showVisualDirectionLayout />;
+  return (
+    <SitePreview
+      config={config}
+      showVisualDirectionLayout
+      leadCaptureTarget={{ kind: "private_demo", token }}
+    />
+  );
 }
