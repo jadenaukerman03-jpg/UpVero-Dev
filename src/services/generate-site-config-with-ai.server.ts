@@ -6,6 +6,26 @@ import { generationQualityDefinitions, type GenerationQualityMode } from "@/data
 import { generateSiteConfigFromLead } from "./generate-site-config-from-lead";
 import { findBannedGenericPhrases } from "./site-generation-quality";
 
+const CREATIVE_BRIEF_LIMITS = {
+  businessType: 200,
+  coreOffer: 500,
+  audience: 500,
+  customerOutcome: 500,
+  voice: 200,
+  visualConcept: 700,
+  heroAngle: 500,
+  narrativeArc: 700,
+  headline: 160,
+  domainVocabulary: 80,
+  conversionGoal: 300,
+  imageSubject: 250,
+  avoid: 200,
+} as const;
+
+function boundedString(maxLength: number) {
+  return { type: "string", minLength: 1, maxLength } as const;
+}
+
 const CREATIVE_BRIEF_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -26,48 +46,66 @@ const CREATIVE_BRIEF_SCHEMA = {
     "avoid",
   ],
   properties: {
-    businessType: { type: "string" },
-    coreOffer: { type: "string" },
-    audience: { type: "string" },
-    customerOutcome: { type: "string" },
-    voice: { type: "array", minItems: 3, maxItems: 3, items: { type: "string" } },
-    visualConcept: { type: "string" },
-    heroAngle: { type: "string" },
-    narrativeArc: { type: "string" },
+    businessType: boundedString(CREATIVE_BRIEF_LIMITS.businessType),
+    coreOffer: boundedString(CREATIVE_BRIEF_LIMITS.coreOffer),
+    audience: boundedString(CREATIVE_BRIEF_LIMITS.audience),
+    customerOutcome: boundedString(CREATIVE_BRIEF_LIMITS.customerOutcome),
+    voice: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: boundedString(CREATIVE_BRIEF_LIMITS.voice),
+    },
+    visualConcept: boundedString(CREATIVE_BRIEF_LIMITS.visualConcept),
+    heroAngle: boundedString(CREATIVE_BRIEF_LIMITS.heroAngle),
+    narrativeArc: boundedString(CREATIVE_BRIEF_LIMITS.narrativeArc),
     headlineCandidates: {
       type: "array",
       minItems: 5,
       maxItems: 5,
-      items: { type: "string" },
+      items: boundedString(CREATIVE_BRIEF_LIMITS.headline),
     },
-    selectedHeadline: { type: "string" },
+    selectedHeadline: boundedString(CREATIVE_BRIEF_LIMITS.headline),
     domainVocabulary: {
       type: "array",
       minItems: 8,
       maxItems: 12,
-      items: { type: "string" },
+      items: boundedString(CREATIVE_BRIEF_LIMITS.domainVocabulary),
     },
-    conversionGoal: { type: "string" },
-    imageSubjects: { type: "array", minItems: 5, maxItems: 5, items: { type: "string" } },
-    avoid: { type: "array", minItems: 3, maxItems: 6, items: { type: "string" } },
+    conversionGoal: boundedString(CREATIVE_BRIEF_LIMITS.conversionGoal),
+    imageSubjects: {
+      type: "array",
+      minItems: 5,
+      maxItems: 5,
+      items: boundedString(CREATIVE_BRIEF_LIMITS.imageSubject),
+    },
+    avoid: {
+      type: "array",
+      minItems: 3,
+      maxItems: 6,
+      items: boundedString(CREATIVE_BRIEF_LIMITS.avoid),
+    },
   },
 } as const;
 
 const creativeBriefSchema = z.object({
-  businessType: z.string().min(1).max(200),
-  coreOffer: z.string().min(1).max(500),
-  audience: z.string().min(1).max(500),
-  customerOutcome: z.string().min(1).max(500),
-  voice: z.array(z.string().min(1).max(200)).length(3),
-  visualConcept: z.string().min(1).max(700),
-  heroAngle: z.string().min(1).max(500),
-  narrativeArc: z.string().min(1).max(700),
-  headlineCandidates: z.array(z.string().min(1).max(160)).length(5),
-  selectedHeadline: z.string().min(1).max(160),
-  domainVocabulary: z.array(z.string().min(1).max(80)).min(8).max(12),
-  conversionGoal: z.string().min(1).max(300),
-  imageSubjects: z.array(z.string().min(1).max(250)).length(5),
-  avoid: z.array(z.string().min(1).max(200)).min(3).max(6),
+  businessType: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.businessType),
+  coreOffer: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.coreOffer),
+  audience: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.audience),
+  customerOutcome: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.customerOutcome),
+  voice: z.array(z.string().min(1).max(CREATIVE_BRIEF_LIMITS.voice)).length(3),
+  visualConcept: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.visualConcept),
+  heroAngle: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.heroAngle),
+  narrativeArc: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.narrativeArc),
+  headlineCandidates: z.array(z.string().min(1).max(CREATIVE_BRIEF_LIMITS.headline)).length(5),
+  selectedHeadline: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.headline),
+  domainVocabulary: z
+    .array(z.string().min(1).max(CREATIVE_BRIEF_LIMITS.domainVocabulary))
+    .min(8)
+    .max(12),
+  conversionGoal: z.string().min(1).max(CREATIVE_BRIEF_LIMITS.conversionGoal),
+  imageSubjects: z.array(z.string().min(1).max(CREATIVE_BRIEF_LIMITS.imageSubject)).length(5),
+  avoid: z.array(z.string().min(1).max(CREATIVE_BRIEF_LIMITS.avoid)).min(3).max(6),
 });
 
 const AI_CONTENT_SCHEMA = {
@@ -973,37 +1011,38 @@ export async function createAiSiteConfig(
   const variationDirection = creativeVariationFor(lead);
 
   try {
-    const planResponse = await requestStructuredResponse({
-      operation: () =>
-        client.responses.create({
-          ...reasoning,
-          model: strategistModel,
-          store: false,
-          max_output_tokens: qualityMode === "efficient" ? 2800 : 4200,
-          instructions: CREATIVE_DIRECTOR_INSTRUCTIONS,
-          input: JSON.stringify({
-            lead,
-            variationDirection,
-            currentConfig: options.currentConfig,
-            revisionInstruction: options.revisionInstruction,
-            renderAudit: options.renderAudit,
-          }),
-          text: {
-            format: {
-              type: "json_schema",
-              name: "website_creative_brief",
-              description: "A grounded creative strategy for this exact business.",
-              strict: true,
-              schema: CREATIVE_BRIEF_SCHEMA,
-            },
-          },
+    const composeCreativePlan = () =>
+      client.responses.create({
+        ...reasoning,
+        model: strategistModel,
+        store: false,
+        max_output_tokens: qualityMode === "efficient" ? 2800 : 4200,
+        instructions: CREATIVE_DIRECTOR_INSTRUCTIONS,
+        input: JSON.stringify({
+          lead,
+          variationDirection,
+          currentConfig: options.currentConfig,
+          revisionInstruction: options.revisionInstruction,
+          renderAudit: options.renderAudit,
         }),
+        text: {
+          format: {
+            type: "json_schema",
+            name: "website_creative_brief",
+            description: "A grounded creative strategy for this exact business.",
+            strict: true,
+            schema: CREATIVE_BRIEF_SCHEMA,
+          },
+        },
+      });
+    let planResponse = await requestStructuredResponse({
+      operation: composeCreativePlan,
       telemetry,
       model: strategistModel,
       phase: "creative-plan",
     });
     if (!planResponse.output_text) responseError("no creative plan");
-    const creativeBrief = creativeBriefSchema.safeParse(JSON.parse(planResponse.output_text));
+    let creativeBrief = creativeBriefSchema.safeParse(JSON.parse(planResponse.output_text));
     if (!creativeBrief.success) {
       console.error(
         "OpenAI creative plan failed validation",
@@ -1012,7 +1051,24 @@ export async function createAiSiteConfig(
           code: issue.code,
         })),
       );
-      responseError("an invalid creative plan");
+      planResponse = await requestStructuredResponse({
+        operation: composeCreativePlan,
+        telemetry,
+        model: strategistModel,
+        phase: "creative-plan-schema-retry",
+      });
+      if (!planResponse.output_text) responseError("no creative plan after schema retry");
+      creativeBrief = creativeBriefSchema.safeParse(JSON.parse(planResponse.output_text));
+      if (!creativeBrief.success) {
+        console.error(
+          "OpenAI creative plan failed validation after retry",
+          creativeBrief.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            code: issue.code,
+          })),
+        );
+        responseError("an invalid creative plan after schema retry");
+      }
     }
 
     const composeSite = () =>
