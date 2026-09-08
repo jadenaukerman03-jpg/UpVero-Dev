@@ -615,7 +615,7 @@
 }
 
 .gs-hero[data-layout="full-bleed"] {
-  color: var(--bone);
+  color: #fff;
   background: var(--ink);
 }
 .gs-hero[data-layout="full-bleed"] .gs-hero-media-wrap {
@@ -655,7 +655,7 @@
   color: rgb(255 255 255 / 82%);
 }
 .gs-hero[data-layout="full-bleed"] .gs-button-quiet {
-  color: var(--bone);
+  color: #fff;
 }
 .gs-hero[data-layout="full-bleed"] .gs-metrics {
   border-color: rgb(255 255 255 / 22%);
@@ -679,7 +679,7 @@
 
 .gs-hero[data-layout="showcase"] {
   background: var(--ink);
-  color: var(--bone);
+  color: #fff;
 }
 .gs-hero[data-layout="showcase"] .gs-hero-grid {
   grid-template-columns: minmax(0, 0.86fr) minmax(24rem, 1.14fr);
@@ -692,7 +692,7 @@
   color: rgb(255 255 255 / 78%);
 }
 .gs-hero[data-layout="showcase"] .gs-button-quiet {
-  color: var(--bone);
+  color: #fff;
 }
 .gs-hero[data-layout="showcase"] .gs-metrics {
   border-color: rgb(255 255 255 / 16%);
@@ -756,6 +756,7 @@
 
 .gs-services {
   background: var(--bone);
+  color: var(--ink);
 }
 .gs-service-grid {
   display: grid;
@@ -858,7 +859,11 @@
 
 .gs-showcase {
   background: var(--ink);
-  color: var(--bone);
+  color: #fff;
+}
+.gs-showcase .gs-section-intro h2,
+.gs-showcase .gs-showcase-card h3 {
+  color: #fff;
 }
 .gs-showcase .gs-kicker {
   color: color-mix(in oklch, var(--clay) 78%, white);
@@ -913,6 +918,7 @@
 
 .gs-about {
   background: color-mix(in oklch, var(--sand) 42%, var(--bone));
+  color: var(--ink);
 }
 .gs-about-grid {
   display: grid;
@@ -962,6 +968,7 @@
 
 .gs-process {
   background: var(--bone);
+  color: var(--ink);
 }
 .gs-process-grid {
   display: grid;
@@ -991,6 +998,7 @@
 
 .gs-experience {
   background: color-mix(in oklch, var(--sand) 30%, var(--bone));
+  color: var(--ink);
 }
 .gs-experience-grid {
   display: grid;
@@ -1034,6 +1042,7 @@
 
 .gs-faq {
   background: var(--bone);
+  color: var(--ink);
 }
 .gs-faq-grid {
   display: grid;
@@ -1096,7 +1105,10 @@
 .gs-contact-wrap {
   padding-top: var(--gs-section-y);
   background: var(--ink);
-  color: var(--bone);
+  color: #fff;
+}
+.gs-contact-wrap .gs-closing-callout h2 {
+  color: #fff;
 }
 .gs-closing-callout {
   display: flex;
@@ -1122,7 +1134,7 @@
   padding-block: 3.5rem 1.5rem;
   border-top: 1px solid rgb(255 255 255 / 12%);
   background: var(--ink);
-  color: var(--bone);
+  color: #fff;
 }
 .gs-footer-grid {
   display: flex;
@@ -1286,7 +1298,19 @@
 .generated-site[data-direction="modern"] .gs-services,
 .generated-site[data-direction="modern"] .gs-process {
   background: color-mix(in oklch, var(--ink) 96%, var(--clay));
-  color: var(--bone);
+  color: #fff;
+}
+.generated-site[data-direction="modern"] .gs-services .gs-section-intro h2,
+.generated-site[data-direction="modern"] .gs-services .gs-service-card h3,
+.generated-site[data-direction="modern"] .gs-process .gs-section-intro h2,
+.generated-site[data-direction="modern"] .gs-process .gs-process-list h3 {
+  color: #fff;
+}
+.generated-site[data-direction="modern"] .gs-services .gs-kicker,
+.generated-site[data-direction="modern"] .gs-process .gs-kicker,
+.generated-site[data-direction="modern"] .gs-services .gs-service-number,
+.generated-site[data-direction="modern"] .gs-process .gs-process-list article > span {
+  color: rgb(255 255 255 / 82%);
 }
 .generated-site[data-direction="modern"] .gs-services {
   --gs-line: rgb(255 255 255 / 15%);

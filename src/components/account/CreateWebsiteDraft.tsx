@@ -206,20 +206,17 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     });
     if (generated instanceof Response) throw new Error(DEMO_UNAVAILABLE_MESSAGE);
     let personalizedConfig = generated as SiteConfig;
-    try {
-      const withImages = await sourceDraftImages({
-        data: {
-          accessToken: auth.accessToken,
-          businessId,
-          websiteId: draftWebsiteId,
-          lead,
-          style: personalizedConfig.design?.visualDirection ?? "professional",
-        },
-      });
-      if (!(withImages instanceof Response)) personalizedConfig = withImages as SiteConfig;
-    } catch {
-      // A complete, image-free composition is valid when Pexels has no relevant result.
-    }
+    const withImages = await sourceDraftImages({
+      data: {
+        accessToken: auth.accessToken,
+        businessId,
+        websiteId: draftWebsiteId,
+        lead,
+        style: personalizedConfig.design?.visualDirection ?? "professional",
+      },
+    });
+    if (withImages instanceof Response) throw new Error(DEMO_UNAVAILABLE_MESSAGE);
+    personalizedConfig = withImages as SiteConfig;
     setPreview(personalizedConfig);
     setGenerationFailed(false);
     setNotice("Your personalized website draft is ready. It has not been published.");

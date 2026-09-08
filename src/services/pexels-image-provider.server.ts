@@ -15,6 +15,13 @@ interface PexelsSearchResponse {
   photos?: PexelsPhoto[];
 }
 
+export class PexelsImageProviderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PexelsImageProviderError";
+  }
+}
+
 const PEOPLE_PATTERN =
   /\b(person|people|human|man|men|woman|women|worker|employee|customer|chef|mechanic|contractor|gardener|landscaper|instructor|staff|hand|hands|portrait|model|crowd|couple|family|boy|girl)\b/i;
 
@@ -74,11 +81,17 @@ export async function findPexelsImage(
   usedSourceUrls: Set<string>,
 ): Promise<ImageAsset | undefined> {
   const apiKey = process.env["PEXELS_API_KEY"];
-  if (!apiKey) return undefined;
+  if (!apiKey) {
+    throw new PexelsImageProviderError(
+      "Pexels image sourcing is not configured on the application server.",
+    );
+  }
 
   const queries = [requirement.searchQuery, ...(requirement.searchQueries ?? [])];
 
   const candidates: Array<{ photo: PexelsPhoto; query: string; score: number }> = [];
+  let successfulSearches = 0;
+  let providerFailures = 0;
 
   for (const [queryIndex, query] of queries.slice(0, 5).entries()) {
     const search = new URL("https://api.pexels.com/v1/search");
@@ -91,8 +104,20 @@ export async function findPexelsImage(
       const response = await fetch(search, { headers: { Authorization: apiKey } });
       if (!response.ok) {
         console.error(`Pexels search failed for ${requirement.section}: ${response.status}`);
+        if (response.status === 401 || response.status === 403) {
+          throw new PexelsImageProviderError(
+            "Pexels rejected the server's image-provider credentials.",
+          );
+        }
+        if (response.status === 429) {
+          throw new PexelsImageProviderError(
+            "Pexels image sourcing is temporarily rate-limited. Please retry later.",
+          );
+        }
+        providerFailures += 1;
         continue;
       }
+      successfulSearches += 1;
       const body = (await response.json()) as PexelsSearchResponse;
       for (const [photoIndex, photo] of (body.photos ?? []).entries()) {
         if (!usedSourceUrls.has(photo.url)) {
@@ -105,9 +130,18 @@ export async function findPexelsImage(
           });
         }
       }
+      if (candidates.some(({ score }) => score >= 68)) break;
     } catch (error) {
+      if (error instanceof PexelsImageProviderError) throw error;
+      providerFailures += 1;
       console.error(`Pexels search failed for ${requirement.section}`, error);
     }
+  }
+
+  if (successfulSearches === 0 && providerFailures > 0) {
+    throw new PexelsImageProviderError(
+      "Pexels image sourcing could not be reached from the application server.",
+    );
   }
 
   const selected = candidates

@@ -62,6 +62,10 @@ export async function sourceImagesForSite(
     missing.push(requirement.section);
   }
 
+  if (missing.length > 0) {
+    throw new Error(`Pexels could not source required images for: ${missing.join(", ")}.`);
+  }
+
   return {
     visualProfile: profile,
     requirements,
