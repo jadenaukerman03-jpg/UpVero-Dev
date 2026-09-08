@@ -450,6 +450,8 @@ export function VisualDirectionSite({ direction, leadCaptureTarget }: VariantPro
       data-motion={blueprint.motion}
       data-surface={blueprint.surfaceStyle}
       data-image-treatment={blueprint.imageTreatment}
+      data-accent={blueprint.accentStyle}
+      data-section-flow={blueprint.sectionFlow}
     >
       <Header direction={direction} />
       <main>

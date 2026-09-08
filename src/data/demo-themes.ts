@@ -192,6 +192,23 @@ const hospitalityThemes: DemoTheme[] = [
   genericThemes[1]!,
 ];
 
+const allCuratedThemes = [...genericThemes, ...automotiveThemes, ...hospitalityThemes].filter(
+  (theme, index, themes) => themes.findIndex((candidate) => candidate.id === theme.id) === index,
+);
+
+function orderedThemes(preferred: DemoTheme[]): DemoTheme[] {
+  const prioritized = preferred.filter(
+    (theme, index, themes) => themes.findIndex((candidate) => candidate.id === theme.id) === index,
+  );
+  return [
+    originalTheme,
+    ...prioritized,
+    ...allCuratedThemes.filter(
+      (theme) => !prioritized.some((preferred) => preferred.id === theme.id),
+    ),
+  ];
+}
+
 /** Curated palettes are selected from the generated site's own business content. */
 export function getDemoThemes(config: SiteConfig): DemoTheme[] {
   const businessContext = [
@@ -202,8 +219,8 @@ export function getDemoThemes(config: SiteConfig): DemoTheme[] {
     .join(" ")
     .toLowerCase();
   if (/(auto|automotive|mechanic|repair shop|vehicle)/.test(businessContext))
-    return [originalTheme, ...automotiveThemes];
+    return orderedThemes(automotiveThemes);
   if (/(restaurant|cafe|bakery|catering|dining|food)/.test(businessContext))
-    return [originalTheme, ...hospitalityThemes];
-  return [originalTheme, ...genericThemes];
+    return orderedThemes(hospitalityThemes);
+  return orderedThemes(genericThemes);
 }

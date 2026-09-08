@@ -25,7 +25,11 @@ function text(value: string | undefined, fallback: string): string {
 
 function list(values: string[] | undefined, fallback: string[]): string[] {
   const cleaned = values?.map((value) => value.trim()).filter(Boolean) ?? [];
-  return cleaned.length > 0 ? cleaned : fallback;
+  const unique = [...cleaned, ...fallback].filter(
+    (value, index, all) =>
+      all.findIndex((candidate) => candidate.toLowerCase() === value.toLowerCase()) === index,
+  );
+  return unique.slice(0, 4);
 }
 
 function slugify(value: string): string {
@@ -141,6 +145,8 @@ function createFallbackBlueprint(
       motion: "subtle",
       surfaceStyle: "outlined",
       imageTreatment: "natural",
+      accentStyle: "frame",
+      sectionFlow: "stacked",
       sectionOrder: ["services", "showcase", "about", "process", "experience", "faq", "contact"],
     },
     modern: {
@@ -152,6 +158,8 @@ function createFallbackBlueprint(
       motion: "expressive",
       surfaceStyle: "glass",
       imageTreatment: "vivid",
+      accentStyle: "beam",
+      sectionFlow: "layered",
       sectionOrder: ["showcase", "services", "process", "about", "experience", "faq", "contact"],
     },
     luxury: {
@@ -163,6 +171,8 @@ function createFallbackBlueprint(
       motion: "cinematic",
       surfaceStyle: "paper",
       imageTreatment: "editorial",
+      accentStyle: "halo",
+      sectionFlow: "alternating",
       sectionOrder: ["about", "showcase", "services", "experience", "process", "faq", "contact"],
     },
     friendly: {
@@ -174,6 +184,8 @@ function createFallbackBlueprint(
       motion: "expressive",
       surfaceStyle: "soft",
       imageTreatment: "warm",
+      accentStyle: "ribbon",
+      sectionFlow: "alternating",
       sectionOrder: ["services", "experience", "showcase", "about", "process", "faq", "contact"],
     },
     minimal: {
@@ -185,6 +197,8 @@ function createFallbackBlueprint(
       motion: "subtle",
       surfaceStyle: "outlined",
       imageTreatment: "monochrome",
+      accentStyle: "grid",
+      sectionFlow: "stacked",
       sectionOrder: ["services", "about", "process", "showcase", "experience", "faq", "contact"],
     },
   };

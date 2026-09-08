@@ -57,6 +57,9 @@ const initialFields: DraftFields = {
   primaryColor: "",
 };
 
+const DEMO_UNAVAILABLE_MESSAGE =
+  "We apologize, it appears demos are off currently. Please email us your site details and we'll get one sent right over to you.";
+
 function accountRedirect() {
   window.location.replace("/account?next=%2Fdraft");
 }
@@ -201,7 +204,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
         qualityMode,
       },
     });
-    if (generated instanceof Response) throw new Error("Personalized generation was unavailable.");
+    if (generated instanceof Response) throw new Error(DEMO_UNAVAILABLE_MESSAGE);
     let personalizedConfig = generated as SiteConfig;
     try {
       const withImages = await sourceDraftImages({
@@ -228,13 +231,9 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     setNotice("Rebuilding this draft with business-specific AI copy…");
     try {
       await personalizeDraft(savedBusinessId, savedWebsiteId);
-    } catch (error) {
+    } catch {
       setGenerationFailed(true);
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Personalized generation failed. Please try again.",
-      );
+      setNotice(DEMO_UNAVAILABLE_MESSAGE);
     } finally {
       setSaving(false);
     }
@@ -248,20 +247,24 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     if (!savedBusinessId || !savedWebsiteId || auth.status !== "authenticated") {
       throw new Error("Save the website before requesting an AI rework.");
     }
-    const revised = await refineAiConfig({
-      data: {
-        accessToken: auth.accessToken,
-        businessId: savedBusinessId,
-        websiteId: savedWebsiteId,
-        lead: currentLead(),
-        qualityMode: nextQualityMode,
-        instruction,
-        renderAudit,
-      },
-    });
-    if (revised instanceof Response) throw new Error("The AI rework was unavailable.");
-    setQualityMode(nextQualityMode);
-    setPreview(revised as SiteConfig);
+    try {
+      const revised = await refineAiConfig({
+        data: {
+          accessToken: auth.accessToken,
+          businessId: savedBusinessId,
+          websiteId: savedWebsiteId,
+          lead: currentLead(),
+          qualityMode: nextQualityMode,
+          instruction,
+          renderAudit,
+        },
+      });
+      if (revised instanceof Response) throw new Error(DEMO_UNAVAILABLE_MESSAGE);
+      setQualityMode(nextQualityMode);
+      setPreview(revised as SiteConfig);
+    } catch {
+      throw new Error(DEMO_UNAVAILABLE_MESSAGE);
+    }
   }
 
   async function changeVisualDirection(visualDirection: DemoVisualDirection) {
@@ -323,13 +326,9 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       window.history.replaceState({}, "", `/draft?website=${saved.id}`);
       try {
         await personalizeDraft(saved.business_id, saved.id);
-      } catch (error) {
+      } catch {
         setGenerationFailed(true);
-        setNotice(
-          error instanceof Error
-            ? `Your draft was saved, but it is not ready to preview: ${error.message}`
-            : "Your draft was saved, but personalized generation failed. Please retry.",
-        );
+        setNotice(DEMO_UNAVAILABLE_MESSAGE);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to create your website draft.");

@@ -8,6 +8,28 @@ export type NavigationItem = { label: string; href: string };
 
 export type SiteConfigKey = "vantageRoofing" | "summitPeakRoofing";
 
+export const generatedFontIds = [
+  "original",
+  "clean",
+  "modern",
+  "corporate",
+  "editorial",
+  "industrial",
+  "classic",
+] as const;
+export type GeneratedFontId = (typeof generatedFontIds)[number];
+
+export const generatedPaletteIds = [
+  "original",
+  "blue",
+  "green",
+  "dark",
+  "premium",
+  "red",
+  "warm",
+] as const;
+export type GeneratedPaletteId = (typeof generatedPaletteIds)[number];
+
 export const generatedSectionIds = [
   "services",
   "showcase",
@@ -29,6 +51,8 @@ export type CreativeBlueprint = {
   motion: "subtle" | "expressive" | "cinematic";
   surfaceStyle: "solid" | "outlined" | "soft" | "glass" | "paper";
   imageTreatment: "natural" | "editorial" | "warm" | "vivid" | "monochrome";
+  accentStyle: "grid" | "halo" | "beam" | "frame" | "ribbon";
+  sectionFlow: "stacked" | "alternating" | "layered";
   sectionOrder: GeneratedSectionId[];
 };
 
@@ -46,10 +70,13 @@ export type SiteConfig = {
     generatedAt?: string;
     revision?: number;
     visualAuditCompletedAt?: string;
+    variationKey?: string;
   };
   design?: {
     visualDirection: "professional" | "modern" | "luxury" | "friendly" | "minimal";
     primaryColor?: string;
+    fontId?: GeneratedFontId;
+    paletteId?: GeneratedPaletteId;
     blueprint?: CreativeBlueprint;
   };
   brand: {
@@ -154,6 +181,8 @@ const creativeBlueprintSchema = z.object({
   motion: z.enum(["subtle", "expressive", "cinematic"]),
   surfaceStyle: z.enum(["solid", "outlined", "soft", "glass", "paper"]),
   imageTreatment: z.enum(["natural", "editorial", "warm", "vivid", "monochrome"]),
+  accentStyle: z.enum(["grid", "halo", "beam", "frame", "ribbon"]).default("grid"),
+  sectionFlow: z.enum(["stacked", "alternating", "layered"]).default("stacked"),
   sectionOrder: z.array(generatedSectionIdSchema).min(4).max(generatedSectionIds.length),
 });
 
@@ -179,6 +208,7 @@ export const siteConfigSchema = z.object({
       generatedAt: z.string().datetime().optional(),
       revision: z.number().int().nonnegative().optional(),
       visualAuditCompletedAt: z.string().datetime().optional(),
+      variationKey: z.string().min(1).max(32).optional(),
     })
     .optional(),
   design: z
@@ -188,6 +218,8 @@ export const siteConfigSchema = z.object({
         .string()
         .regex(/^#[0-9a-fA-F]{6}$/)
         .optional(),
+      fontId: z.enum(generatedFontIds).optional(),
+      paletteId: z.enum(generatedPaletteIds).optional(),
       blueprint: creativeBlueprintSchema.optional(),
     })
     .optional(),

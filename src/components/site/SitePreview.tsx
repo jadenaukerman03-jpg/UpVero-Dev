@@ -69,12 +69,22 @@ export function SitePreview({
   const storageKey = `website-factory-demo-theme:${config.brand.name.toLowerCase()}`;
   const directionStorageKey = `website-factory-demo-direction:${config.brand.name.toLowerCase()}`;
   const fontStorageKey = `website-factory-demo-font:${config.brand.name.toLowerCase()}`;
-  const [themeId, setThemeId] = useState("original");
+  const configuredThemeId = config.design?.paletteId;
+  const configuredFontId = config.design?.fontId;
+  const [themeId, setThemeId] = useState<string>(() =>
+    configuredThemeId && themes.some((theme) => theme.id === configuredThemeId)
+      ? configuredThemeId
+      : "original",
+  );
   const configuredDirection = config.design?.visualDirection;
   const [directionId, setDirectionId] = useState<DemoVisualDirection>(
     configuredDirection ?? recommendedDirection,
   );
-  const [fontId, setFontId] = useState("original");
+  const [fontId, setFontId] = useState<string>(() =>
+    configuredFontId && fontOptions.some((font) => font.id === configuredFontId)
+      ? configuredFontId
+      : "original",
+  );
   const [tier, setTier] = useState<SubscriptionTier>("launch");
   const selectedTheme = themes.find((theme) => theme.id === themeId) ?? themes[0]!;
   const selectedDirection = visualDirectionDefinitions[directionId];
@@ -96,11 +106,24 @@ export function SitePreview({
   useEffect(() => {
     if (!showVisualDirectionLayout || showDemoLaunchControls) return;
     setDirectionId(config.design?.visualDirection ?? recommendedDirection);
+    setThemeId(
+      configuredThemeId && themes.some((theme) => theme.id === configuredThemeId)
+        ? configuredThemeId
+        : "original",
+    );
+    setFontId(
+      configuredFontId && fontOptions.some((font) => font.id === configuredFontId)
+        ? configuredFontId
+        : "original",
+    );
   }, [
+    configuredFontId,
+    configuredThemeId,
     config.design?.visualDirection,
     recommendedDirection,
     showDemoLaunchControls,
     showVisualDirectionLayout,
+    themes,
   ]);
 
   function selectTheme(nextThemeId: string) {

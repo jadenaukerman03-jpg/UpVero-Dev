@@ -18,6 +18,8 @@ const directionBlueprints: Record<
     motion: "subtle",
     surfaceStyle: "outlined",
     imageTreatment: "natural",
+    accentStyle: "frame",
+    sectionFlow: "stacked",
   },
   modern: {
     archetype: "immersive",
@@ -27,6 +29,8 @@ const directionBlueprints: Record<
     motion: "expressive",
     surfaceStyle: "glass",
     imageTreatment: "vivid",
+    accentStyle: "beam",
+    sectionFlow: "layered",
   },
   luxury: {
     archetype: "editorial",
@@ -36,6 +40,8 @@ const directionBlueprints: Record<
     motion: "cinematic",
     surfaceStyle: "paper",
     imageTreatment: "editorial",
+    accentStyle: "halo",
+    sectionFlow: "alternating",
   },
   friendly: {
     archetype: "playful",
@@ -45,6 +51,8 @@ const directionBlueprints: Record<
     motion: "expressive",
     surfaceStyle: "soft",
     imageTreatment: "warm",
+    accentStyle: "ribbon",
+    sectionFlow: "alternating",
   },
   minimal: {
     archetype: "minimal",
@@ -54,6 +62,8 @@ const directionBlueprints: Record<
     motion: "subtle",
     surfaceStyle: "outlined",
     imageTreatment: "monochrome",
+    accentStyle: "grid",
+    sectionFlow: "stacked",
   },
 };
 
@@ -84,6 +94,8 @@ export function resolveCreativeBlueprint(
   if (generated && generated.authoredFor === direction) {
     return {
       ...generated,
+      accentStyle: generated.accentStyle ?? directionBlueprints[direction].accentStyle,
+      sectionFlow: generated.sectionFlow ?? directionBlueprints[direction].sectionFlow,
       sectionOrder: normalizedOrder(generated.sectionOrder, directionOrders[direction]),
     };
   }
