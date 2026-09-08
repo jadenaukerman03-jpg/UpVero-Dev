@@ -5,7 +5,10 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { createLead } from "@/data/leads";
 import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
-import { generateOwnedDraftSiteConfigWithAI } from "@/services/generate-site-config-with-ai";
+import {
+  generateOwnedDraftSiteConfigWithAI,
+  refineOwnedDraftSiteConfigWithAI,
+} from "@/services/generate-site-config-with-ai";
 import { sourceOwnedDraftImages } from "@/services/source-images-for-site";
 import {
   getOwnedWebsite,
@@ -16,6 +19,12 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { SitePreview } from "@/components/site/SitePreview";
 import type { SiteConfig } from "@/data/site";
 import type { DemoVisualDirection } from "@/data/demo-themes";
+import {
+  generationQualityDefinitions,
+  generationQualityModes,
+  type GenerationQualityMode,
+} from "@/data/site-generation";
+import type { PreviewRenderAudit } from "@/lib/preview-audit";
 
 type AuthState =
   | { status: "loading" }
@@ -57,17 +66,33 @@ function normalizeColor(value: string): string | undefined {
   return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : undefined;
 }
 
+function isLegacyGenericFallback(config: SiteConfig) {
+  const copy =
+    `${config.hero.headline} ${config.services.heading} ${config.services.items.map((item) => item.title).join(" ")}`.toLowerCase();
+  return [
+    "a thoughtful next step",
+    "makes flight instructor straightforward",
+    "professional service",
+    "project support",
+    "ongoing care",
+  ].some((phrase) => copy.includes(phrase));
+}
+
 export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [fields, setFields] = useState<DraftFields>(initialFields);
   const [preview, setPreview] = useState<SiteConfig>();
   const [savedWebsiteId, setSavedWebsiteId] = useState(websiteId);
+  const [savedBusinessId, setSavedBusinessId] = useState<string>();
+  const [qualityMode, setQualityMode] = useState<GenerationQualityMode>("studio");
+  const [generationFailed, setGenerationFailed] = useState(false);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [updatingDirection, setUpdatingDirection] = useState(false);
   const getWebsite = useServerFn(getOwnedWebsite);
   const saveWebsite = useServerFn(saveGeneratedWebsite);
   const generateAiConfig = useServerFn(generateOwnedDraftSiteConfigWithAI);
+  const refineAiConfig = useServerFn(refineOwnedDraftSiteConfigWithAI);
   const sourceDraftImages = useServerFn(sourceOwnedDraftImages);
   const updateVisualDirection = useServerFn(updateOwnedWebsiteVisualDirection);
 
@@ -108,7 +133,21 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       .then((website) => {
         if (!active || website instanceof Response) return;
         const config = website.site_config as SiteConfig;
-        setPreview(config);
+        setSavedBusinessId(website.business_id);
+        setQualityMode(config.generation?.qualityMode ?? "studio");
+        if (
+          (!config.generation || config.generation.status === "complete") &&
+          !isLegacyGenericFallback(config)
+        ) {
+          setPreview(config);
+          setGenerationFailed(false);
+        } else {
+          setPreview(undefined);
+          setGenerationFailed(true);
+          setNotice(
+            "This draft still needs personalized AI generation. Your business details are safe.",
+          );
+        }
         setFields((current) => ({
           ...current,
           businessName: config.brand.name,
@@ -130,6 +169,99 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
 
   function update<K extends keyof DraftFields>(key: K, value: DraftFields[K]) {
     setFields((current) => ({ ...current, [key]: value }));
+  }
+
+  function currentLead() {
+    return createLead({
+      businessName: fields.businessName,
+      industry: fields.category || undefined,
+      city: fields.city || undefined,
+      state: fields.state || undefined,
+      phone: fields.phone || undefined,
+      email: fields.email || undefined,
+      website: fields.website || undefined,
+      serviceAreas: fields.serviceArea
+        .split(",")
+        .map((area) => area.trim())
+        .filter(Boolean),
+      businessDescription: fields.description || undefined,
+      source: "customer-draft",
+    });
+  }
+
+  async function personalizeDraft(businessId: string, draftWebsiteId: string) {
+    if (auth.status !== "authenticated") throw new Error("Sign in is required.");
+    const lead = currentLead();
+    const generated = await generateAiConfig({
+      data: {
+        accessToken: auth.accessToken,
+        businessId,
+        websiteId: draftWebsiteId,
+        lead,
+        qualityMode,
+      },
+    });
+    if (generated instanceof Response) throw new Error("Personalized generation was unavailable.");
+    let personalizedConfig = generated as SiteConfig;
+    try {
+      const withImages = await sourceDraftImages({
+        data: {
+          accessToken: auth.accessToken,
+          businessId,
+          websiteId: draftWebsiteId,
+          lead,
+          style: personalizedConfig.design?.visualDirection ?? "professional",
+        },
+      });
+      if (!(withImages instanceof Response)) personalizedConfig = withImages as SiteConfig;
+    } catch {
+      // A complete, image-free composition is valid when Pexels has no relevant result.
+    }
+    setPreview(personalizedConfig);
+    setGenerationFailed(false);
+    setNotice("Your personalized website draft is ready. It has not been published.");
+  }
+
+  async function retryPersonalization() {
+    if (!savedBusinessId || !savedWebsiteId || saving) return;
+    setSaving(true);
+    setNotice("Rebuilding this draft with business-specific AI copy…");
+    try {
+      await personalizeDraft(savedBusinessId, savedWebsiteId);
+    } catch (error) {
+      setGenerationFailed(true);
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Personalized generation failed. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function refinePreview(
+    instruction: string,
+    nextQualityMode: GenerationQualityMode,
+    renderAudit: PreviewRenderAudit,
+  ) {
+    if (!savedBusinessId || !savedWebsiteId || auth.status !== "authenticated") {
+      throw new Error("Save the website before requesting an AI rework.");
+    }
+    const revised = await refineAiConfig({
+      data: {
+        accessToken: auth.accessToken,
+        businessId: savedBusinessId,
+        websiteId: savedWebsiteId,
+        lead: currentLead(),
+        qualityMode: nextQualityMode,
+        instruction,
+        renderAudit,
+      },
+    });
+    if (revised instanceof Response) throw new Error("The AI rework was unavailable.");
+    setQualityMode(nextQualityMode);
+    setPreview(revised as SiteConfig);
   }
 
   async function changeVisualDirection(visualDirection: DemoVisualDirection) {
@@ -162,24 +294,16 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     setSaving(true);
     setNotice("");
     try {
-      const lead = createLead({
-        businessName: fields.businessName,
-        industry: fields.category || undefined,
-        city: fields.city || undefined,
-        state: fields.state || undefined,
-        phone: fields.phone || undefined,
-        email: fields.email || undefined,
-        website: fields.website || undefined,
-        serviceAreas: fields.serviceArea
-          .split(",")
-          .map((area) => area.trim())
-          .filter(Boolean),
-        businessDescription: fields.description || undefined,
-        source: "customer-draft",
-      });
+      const lead = currentLead();
       const primaryColor = normalizeColor(fields.primaryColor);
       const config = {
         ...generateSiteConfigFromLead(lead),
+        generation: {
+          status: "pending",
+          qualityMode,
+          estimatedCostCents: qualityMode === "efficient" ? 2.5 : qualityMode === "studio" ? 8 : 30,
+          revision: 0,
+        },
         design: primaryColor
           ? { visualDirection: "professional", primaryColor }
           : { visualDirection: "professional" },
@@ -193,46 +317,20 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
         },
       });
       if (saved instanceof Response) throw new Error("Unable to save your website draft.");
-      let personalizedConfig: SiteConfig = config;
-      let aiGenerated = false;
-      try {
-        const generated = await generateAiConfig({
-          data: {
-            accessToken: auth.accessToken,
-            businessId: saved.business_id,
-            websiteId: saved.id,
-            lead,
-          },
-        });
-        if (generated instanceof Response) throw new Error("AI generation was unavailable.");
-        personalizedConfig = generated as SiteConfig;
-        aiGenerated = true;
-      } catch {
-        // The secure draft is still useful when a provider is temporarily
-        // unavailable. It can be retried without losing the owner's work.
-        setNotice("Your draft was saved. Personalized AI copy is temporarily unavailable; please try again shortly.");
-      }
-      try {
-        const withImages = await sourceDraftImages({
-          data: {
-            accessToken: auth.accessToken,
-            businessId: saved.business_id,
-            websiteId: saved.id,
-            lead,
-            style: personalizedConfig.design?.visualDirection ?? "professional",
-          },
-        });
-        if (!(withImages instanceof Response)) personalizedConfig = withImages as SiteConfig;
-      } catch {
-        // The responsive image-free layouts remain complete if Pexels is
-        // temporarily unavailable or has no suitable result.
-      }
-      setPreview(personalizedConfig);
       setSavedWebsiteId(saved.id);
-      if (aiGenerated) {
-        setNotice("Your personalized website draft is ready. It has not been published.");
-      }
+      setSavedBusinessId(saved.business_id);
+      setPreview(undefined);
       window.history.replaceState({}, "", `/draft?website=${saved.id}`);
+      try {
+        await personalizeDraft(saved.business_id, saved.id);
+      } catch (error) {
+        setGenerationFailed(true);
+        setNotice(
+          error instanceof Error
+            ? `Your draft was saved, but it is not ready to preview: ${error.message}`
+            : "Your draft was saved, but personalized generation failed. Please retry.",
+        );
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to create your website draft.");
     } finally {
@@ -374,6 +472,31 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
                 onChange={(event) => update("description", event.target.value)}
               />
             </label>
+            <fieldset className="uv-draft-wide uv-quality-fieldset">
+              <legend>Preview quality</legend>
+              <div className="uv-quality-options">
+                {generationQualityModes.map((mode) => {
+                  const option = generationQualityDefinitions[mode];
+                  return (
+                    <label
+                      key={mode}
+                      className={`uv-quality-option ${qualityMode === mode ? "is-selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="qualityMode"
+                        value={mode}
+                        checked={qualityMode === mode}
+                        onChange={() => setQualityMode(mode)}
+                      />{" "}
+                      <strong>{option.label}</strong>
+                      <span>{option.description}</span>
+                      <small>{option.estimatedCostLabel}</small>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
             <button className="uv-button uv-button-primary uv-draft-wide" disabled={saving}>
               {saving ? (
                 <>
@@ -392,6 +515,17 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
             {notice}
           </p>
         ) : null}
+        {generationFailed && savedWebsiteId ? (
+          <button
+            type="button"
+            className="uv-button uv-button-primary"
+            disabled={saving}
+            onClick={() => void retryPersonalization()}
+          >
+            {saving ? <LoaderCircle className="animate-spin" size={16} /> : <Sparkles size={16} />}
+            Retry personalized generation
+          </button>
+        ) : null}
       </main>
       {preview ? (
         <section className="uv-draft-preview">
@@ -405,6 +539,9 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
             onDemoVisualDirectionChange={(direction) => {
               if (!updatingDirection) void changeVisualDirection(direction);
             }}
+            generationQualityMode={qualityMode}
+            onGenerationQualityModeChange={setQualityMode}
+            onDemoAiRefine={refinePreview}
           />
         </section>
       ) : null}

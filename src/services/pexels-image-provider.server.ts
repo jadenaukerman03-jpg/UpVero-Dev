@@ -15,7 +15,22 @@ interface PexelsSearchResponse {
   photos?: PexelsPhoto[];
 }
 
-function scorePhoto(photo: PexelsPhoto, requirement: ImageRequirement): number {
+const PEOPLE_PATTERN =
+  /\b(person|people|human|man|men|woman|women|worker|employee|customer|chef|mechanic|contractor|gardener|landscaper|instructor|staff|hand|hands|portrait|model|crowd|couple|family|boy|girl)\b/i;
+
+function keywords(value: string) {
+  return new Set(
+    value
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(
+        (word) =>
+          word.length > 3 && !["professional", "premium", "business", "editorial"].includes(word),
+      ),
+  );
+}
+
+function scorePhoto(photo: PexelsPhoto, requirement: ImageRequirement, query: string): number {
   const aspectRatio = photo.width / photo.height;
   const expectedRatio = requirement.orientation === "landscape" ? 1.5 : 0.8;
   const orientationMatches =
@@ -24,7 +39,19 @@ function scorePhoto(photo: PexelsPhoto, requirement: ImageRequirement): number {
       : photo.height > photo.width;
   const aspectScore = Math.max(0, 20 - Math.abs(aspectRatio - expectedRatio) * 20);
   const sizeScore = photo.width >= 1200 && photo.height >= 900 ? 15 : 5;
-  return (orientationMatches ? 55 : 20) + aspectScore + sizeScore + (photo.alt?.trim() ? 10 : 0);
+  const searchable = `${photo.alt ?? ""} ${photo.url}`;
+  if (PEOPLE_PATTERN.test(searchable)) return 0;
+  const queryWords = keywords(`${requirement.searchQuery} ${query}`);
+  const photoWords = keywords(searchable);
+  const overlap = [...queryWords].filter((word) => photoWords.has(word)).length;
+  const semanticScore = Math.min(36, overlap * 9);
+  return (
+    (orientationMatches ? 42 : 10) +
+    aspectScore +
+    sizeScore +
+    semanticScore +
+    (photo.alt?.trim() ? 6 : 0)
+  );
 }
 
 function preferredPhotoUrl(photo: PexelsPhoto, requirement: ImageRequirement): string | undefined {
@@ -51,51 +78,60 @@ export async function findPexelsImage(
 
   const queries = [requirement.searchQuery, ...(requirement.searchQueries ?? [])];
 
-  for (const query of queries) {
+  const candidates: Array<{ photo: PexelsPhoto; query: string; score: number }> = [];
+
+  for (const [queryIndex, query] of queries.slice(0, 5).entries()) {
     const search = new URL("https://api.pexels.com/v1/search");
     search.searchParams.set("query", query);
     search.searchParams.set("orientation", requirement.orientation);
     search.searchParams.set("size", "large");
-    search.searchParams.set("per_page", "12");
+    search.searchParams.set("per_page", "40");
 
     try {
       const response = await fetch(search, { headers: { Authorization: apiKey } });
       if (!response.ok) {
         console.error(`Pexels search failed for ${requirement.section}: ${response.status}`);
-        return undefined;
+        continue;
       }
       const body = (await response.json()) as PexelsSearchResponse;
-      const selected = (body.photos ?? [])
-        .filter((photo) => !usedSourceUrls.has(photo.url))
-        .map((photo) => ({ photo, score: scorePhoto(photo, requirement) }))
-        .filter(({ score }) => score >= 70)
-        .sort((left, right) => right.score - left.score)[0]?.photo;
-      const src = selected ? preferredPhotoUrl(selected, requirement) : undefined;
-      if (!selected || !src || !isPexelsImageUrl(src)) continue;
-
-      return {
-        id: `pexels-${selected.id}`,
-        section: requirement.section,
-        status: "completed",
-        alt: selected.alt?.trim() || requirement.alt,
-        prompt: query,
-        queryOrPromptSummary: query,
-        dimensions: requirement.dimensions,
-        generatedAt: new Date().toISOString(),
-        src,
-        cacheKey: `pexels-${selected.id}-${requirement.section}`,
-        sourceType: "pexels",
-        providerName: "Pexels",
-        originalSourceUrl: selected.url,
-        attribution: `Photo by ${selected.photographer} on Pexels (${selected.photographer_url})`,
-        licenseMetadata: "Pexels API result; retain provider attribution and linking requirements.",
-        usagePermission: "provider-license",
-      };
+      for (const [photoIndex, photo] of (body.photos ?? []).entries()) {
+        if (!usedSourceUrls.has(photo.url)) {
+          const providerRelevance = Math.max(0, 24 - photoIndex);
+          const queryPriority = Math.max(0, 36 - queryIndex * 9);
+          candidates.push({
+            photo,
+            query,
+            score: scorePhoto(photo, requirement, query) + providerRelevance + queryPriority,
+          });
+        }
+      }
     } catch (error) {
       console.error(`Pexels search failed for ${requirement.section}`, error);
-      return undefined;
     }
   }
 
-  return undefined;
+  const selected = candidates
+    .filter(({ score }) => score >= 68)
+    .sort((left, right) => right.score - left.score)[0];
+  const src = selected ? preferredPhotoUrl(selected.photo, requirement) : undefined;
+  if (!selected || !src || !isPexelsImageUrl(src)) return undefined;
+
+  return {
+    id: `pexels-${selected.photo.id}`,
+    section: requirement.section,
+    status: "completed",
+    alt: selected.photo.alt?.trim() || requirement.alt,
+    prompt: selected.query,
+    queryOrPromptSummary: selected.query,
+    dimensions: requirement.dimensions,
+    generatedAt: new Date().toISOString(),
+    src,
+    cacheKey: `pexels-${selected.photo.id}-${requirement.section}`,
+    sourceType: "pexels",
+    providerName: "Pexels",
+    originalSourceUrl: selected.photo.url,
+    attribution: `Photo by ${selected.photo.photographer} on Pexels (${selected.photo.photographer_url})`,
+    licenseMetadata: "Pexels API result; retain provider attribution and linking requirements.",
+    usagePermission: "provider-license",
+  };
 }

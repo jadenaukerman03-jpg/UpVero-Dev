@@ -57,7 +57,9 @@ function PricingPage() {
               interactive
               isExpanded={expandedPlanId === plan.id}
               isCondensed={Boolean(expandedPlanId && expandedPlanId !== plan.id)}
-              onToggle={() => setExpandedPlanId((current) => (current === plan.id ? null : plan.id))}
+              onToggle={() =>
+                setExpandedPlanId((current) => (current === plan.id ? null : plan.id))
+              }
             />
           ))}
         </div>
@@ -81,7 +83,11 @@ function PricingPage() {
                     aria-controls={`pricing-faq-${index}`}
                   >
                     {question}
-                    <ChevronDown size={18} className={isOpen ? "uv-chevron-open" : ""} aria-hidden="true" />
+                    <ChevronDown
+                      size={18}
+                      className={isOpen ? "uv-chevron-open" : ""}
+                      aria-hidden="true"
+                    />
                   </button>
                   <div id={`pricing-faq-${index}`} className="uv-faq-answer" aria-hidden={!isOpen}>
                     <p>{answer}</p>

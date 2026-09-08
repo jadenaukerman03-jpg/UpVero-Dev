@@ -130,7 +130,9 @@ export function CustomerDashboard() {
               <Globe2
                 size={20}
                 aria-hidden="true"
-                className={website.status === "draft" ? "uv-website-card-icon-with-delete" : undefined}
+                className={
+                  website.status === "draft" ? "uv-website-card-icon-with-delete" : undefined
+                }
               />
               <p className="uv-status">{website.status}</p>
               <h2>{website.name}</h2>

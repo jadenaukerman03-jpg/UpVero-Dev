@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { safeHttpsUrlSchema, safeLinkHrefSchema } from "@/lib/safe-url";
+import { generationQualityModes, type GenerationQualityMode } from "./site-generation";
 
 export type Cta = { label: string; href: string };
 
@@ -32,6 +33,20 @@ export type CreativeBlueprint = {
 };
 
 export type SiteConfig = {
+  generation?: {
+    status: "pending" | "complete" | "failed";
+    qualityMode: GenerationQualityMode;
+    qualityScore?: number;
+    estimatedCostCents?: number;
+    actualCostCents?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    models?: string[];
+    issues?: string[];
+    generatedAt?: string;
+    revision?: number;
+    visualAuditCompletedAt?: string;
+  };
   design?: {
     visualDirection: "professional" | "modern" | "luxury" | "friendly" | "minimal";
     primaryColor?: string;
@@ -150,6 +165,22 @@ const siteAssetSchema = z.object({
 
 /** Runtime validation for generated or eventually AI-provided site configurations. */
 export const siteConfigSchema = z.object({
+  generation: z
+    .object({
+      status: z.enum(["pending", "complete", "failed"]),
+      qualityMode: z.enum(generationQualityModes),
+      qualityScore: z.number().min(0).max(100).optional(),
+      estimatedCostCents: z.number().nonnegative().optional(),
+      actualCostCents: z.number().nonnegative().optional(),
+      inputTokens: z.number().int().nonnegative().optional(),
+      outputTokens: z.number().int().nonnegative().optional(),
+      models: z.array(z.string().min(1).max(100)).max(8).optional(),
+      issues: z.array(z.string().min(1).max(500)).max(20).optional(),
+      generatedAt: z.string().datetime().optional(),
+      revision: z.number().int().nonnegative().optional(),
+      visualAuditCompletedAt: z.string().datetime().optional(),
+    })
+    .optional(),
   design: z
     .object({
       visualDirection: z.enum(["professional", "modern", "luxury", "friendly", "minimal"]),

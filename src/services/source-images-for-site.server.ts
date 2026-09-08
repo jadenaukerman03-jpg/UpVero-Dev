@@ -18,25 +18,25 @@ function requirementFor(
   const serviceContext = section.startsWith("showcase-")
     ? featuredService
     : profile.services.slice(0, 2).join(" ") || profile.industry;
-  const locationContext = profile.location ? ` ${profile.location}` : "";
   const subject =
     section === "hero"
-      ? "premium business environment finished result"
+      ? `${featuredService} finished result environment no people`
       : section === "about"
-        ? "professional workspace tools materials interior"
-        : "editorial detail finished result product equipment";
-  const locationAwareQuery = `${profile.industry} ${serviceContext}${locationContext} ${subject}`;
+        ? `${featuredService} industry equipment tools workspace no people`
+        : `${featuredService} close detail materials finished result no people`;
+  const locationAwareQuery = `${profile.industry} ${serviceContext} ${subject}`;
   const creativeBrief = request.briefs?.[section]?.trim().slice(0, 300);
   return {
     section,
     dimensions: section === "hero" ? "1536x1024" : section === "about" ? "1024x1536" : "1200x900",
     orientation: section === "about" ? "portrait" : "landscape",
-    searchQuery: creativeBrief ? `${creativeBrief}${locationContext}` : locationAwareQuery,
+    searchQuery: creativeBrief || locationAwareQuery,
     searchQueries: [
       ...(creativeBrief ? [`${profile.industry} ${creativeBrief}`] : []),
       `${profile.industry} ${serviceContext} ${subject}`,
       `${serviceContext} ${subject}`,
-      `${profile.industry} ${subject}`,
+      `${profile.industry} ${featuredService} no people`,
+      ...(profile.location ? [`${profile.industry} ${profile.location} ${featuredService}`] : []),
     ],
     alt: imageAlt(profile, section),
   };

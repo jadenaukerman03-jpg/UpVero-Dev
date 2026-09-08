@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import {
   getDemoThemes,
@@ -9,7 +9,9 @@ import {
 } from "@/data/demo-themes";
 import { fontOptions, isOptionUnlocked, type SubscriptionTier } from "@/data/customization-tiers";
 import type { SiteConfig } from "@/data/site";
+import type { GenerationQualityMode } from "@/data/site-generation";
 import { SiteConfigProvider } from "@/data/site-config-context";
+import { collectPreviewAudit, type PreviewRenderAudit } from "@/lib/preview-audit";
 
 import { About } from "./About";
 import { Contact } from "./Contact";
@@ -33,6 +35,9 @@ export function SitePreview({
   demoControlsInitiallyExpanded = true,
   allowAllDemoPreviewOptions = false,
   onDemoVisualDirectionChange,
+  generationQualityMode = "studio",
+  onGenerationQualityModeChange,
+  onDemoAiRefine,
 }: {
   config: SiteConfig;
   showDemoLaunchControls?: boolean;
@@ -50,7 +55,15 @@ export function SitePreview({
   allowAllDemoPreviewOptions?: boolean;
   /** Optional persistence hook for a customer-owned draft's visual direction. */
   onDemoVisualDirectionChange?: (direction: DemoVisualDirection) => void;
+  generationQualityMode?: GenerationQualityMode;
+  onGenerationQualityModeChange?: (mode: GenerationQualityMode) => void;
+  onDemoAiRefine?: (
+    instruction: string,
+    qualityMode: GenerationQualityMode,
+    audit: PreviewRenderAudit,
+  ) => Promise<void>;
 }) {
+  const previewRootRef = useRef<HTMLDivElement>(null);
   const themes = useMemo(() => getDemoThemes(config), [config]);
   const recommendedDirection = useMemo(() => getRecommendedVisualDirection(config), [config]);
   const storageKey = `website-factory-demo-theme:${config.brand.name.toLowerCase()}`;
@@ -132,6 +145,7 @@ export function SitePreview({
   return (
     <SiteConfigProvider config={config}>
       <div
+        ref={previewRootRef}
         className={`${showDemoLaunchControls ? `demo-direction-${selectedDirection.id} pb-24 sm:pb-28 ` : ""}min-h-screen bg-bone font-sans text-ink antialiased`}
         style={themeStyle}
       >
@@ -170,6 +184,21 @@ export function SitePreview({
             launchLabel={demoLaunchLabel}
             initiallyExpanded={demoControlsInitiallyExpanded}
             allowAllPreviewOptions={allowAllDemoPreviewOptions}
+            qualityMode={generationQualityMode}
+            onQualityModeChange={onGenerationQualityModeChange}
+            onAiRefine={
+              onDemoAiRefine
+                ? async (instruction, qualityMode) => {
+                    if (!previewRootRef.current)
+                      throw new Error("The preview is not ready to inspect.");
+                    await onDemoAiRefine(
+                      instruction,
+                      qualityMode,
+                      collectPreviewAudit(previewRootRef.current),
+                    );
+                  }
+                : undefined
+            }
           />
         )}
       </div>

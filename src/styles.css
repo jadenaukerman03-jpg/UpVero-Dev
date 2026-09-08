@@ -2821,6 +2821,63 @@
   grid-column: 1 / -1;
 }
 
+.uv-quality-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.uv-quality-fieldset legend {
+  margin-bottom: 0.65rem;
+  font-weight: 650;
+}
+
+.uv-quality-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.uv-quality-option {
+  min-height: 6rem;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--uv-ink) 15%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.85rem;
+  background: color-mix(in srgb, var(--uv-card) 88%, white);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.uv-quality-option:hover,
+.uv-quality-option.is-selected {
+  border-color: var(--uv-primary);
+  background: color-mix(in srgb, var(--uv-primary) 7%, var(--uv-card));
+}
+
+.uv-quality-option span,
+.uv-quality-option small {
+  display: block;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+}
+
+.uv-quality-option span {
+  font-size: 0.78rem;
+}
+
+.uv-quality-option small {
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .uv-quality-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 .uv-draft-preview {
   margin-top: 2rem;
   border-top: 1px solid var(--uv-border);

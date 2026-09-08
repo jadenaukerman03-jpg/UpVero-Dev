@@ -6,6 +6,7 @@ import {
   Lock,
   Palette,
   SlidersHorizontal,
+  Sparkles,
   Type,
 } from "lucide-react";
 
@@ -17,6 +18,11 @@ import {
   type FontOption,
   type SubscriptionTier,
 } from "@/data/customization-tiers";
+import {
+  generationQualityDefinitions,
+  generationQualityModes,
+  type GenerationQualityMode,
+} from "@/data/site-generation";
 
 type DemoLaunchControlsProps = {
   businessName: string;
@@ -37,9 +43,13 @@ type DemoLaunchControlsProps = {
   /** Demo owners may try every visual option before selecting a plan. */
   allowAllPreviewOptions?: boolean;
   initiallyExpanded?: boolean;
+  qualityMode?: GenerationQualityMode;
+  onQualityModeChange?: ((mode: GenerationQualityMode) => void) | undefined;
+  onAiRefine?:
+    ((instruction: string, qualityMode: GenerationQualityMode) => Promise<void>) | undefined;
 };
 
-type SettingsSection = "direction" | "colors" | "fonts";
+type SettingsSection = "direction" | "colors" | "fonts" | "ai";
 
 export function DemoLaunchControls({
   businessName,
@@ -59,10 +69,16 @@ export function DemoLaunchControls({
   launchLabel = "🚀 Launch Your Website",
   allowAllPreviewOptions = false,
   initiallyExpanded = true,
+  qualityMode = "studio",
+  onQualityModeChange,
+  onAiRefine,
 }: DemoLaunchControlsProps) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [upgradeMessage, setUpgradeMessage] = useState("");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("direction");
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiStatus, setAiStatus] = useState("");
+  const [refining, setRefining] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const selectedDirectionLabel =
     directions.find((direction) => direction.id === selectedDirection)?.label ?? "Custom";
@@ -145,6 +161,7 @@ export function DemoLaunchControls({
     { id: "direction", label: "Layout", icon: LayoutTemplate },
     { id: "colors", label: "Colors", icon: Palette },
     { id: "fonts", label: "Type", icon: Type },
+    ...(onAiRefine ? [{ id: "ai" as const, label: "AI", icon: Sparkles }] : []),
   ];
 
   return (
@@ -202,7 +219,7 @@ export function DemoLaunchControls({
         )}
 
         <div
-          className="grid grid-cols-3 border-b border-bone/10 px-3 pt-2 sm:px-4"
+          className={`grid ${onAiRefine ? "grid-cols-4" : "grid-cols-3"} border-b border-bone/10 px-3 pt-2 sm:px-4`}
           role="tablist"
           aria-label="Website settings"
         >
@@ -341,6 +358,84 @@ export function DemoLaunchControls({
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {settingsSection === "ai" && onAiRefine && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-bone">Generation quality</p>
+                <div
+                  className="mt-2 grid grid-cols-3 gap-1"
+                  role="radiogroup"
+                  aria-label="AI generation quality"
+                >
+                  {generationQualityModes.map((mode) => {
+                    const option = generationQualityDefinitions[mode];
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={qualityMode === mode}
+                        onClick={() => onQualityModeChange?.(mode)}
+                        className={`rounded-lg border px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-clay ${qualityMode === mode ? "border-clay bg-clay/15" : "border-bone/10 bg-bone/5 hover:bg-bone/10"}`}
+                      >
+                        <span className="block text-[11px] font-semibold text-bone">
+                          {option.label}
+                        </span>
+                        <span className="mt-1 block text-[9px] leading-tight text-bone/45">
+                          {option.estimatedCostLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <label
+                className="block text-xs font-semibold text-bone"
+                htmlFor="ai-website-instruction"
+              >
+                Tell the studio what to change
+              </label>
+              <textarea
+                id="ai-website-instruction"
+                rows={3}
+                maxLength={1200}
+                value={aiInstruction}
+                onChange={(event) => setAiInstruction(event.target.value)}
+                placeholder="Make the hero focus on weekly lawn care and give the page a more energetic visual rhythm."
+                className="w-full resize-none rounded-xl border border-bone/15 bg-bone/5 px-3 py-2 text-xs text-bone outline-none placeholder:text-bone/30 focus:border-clay"
+              />
+              <button
+                type="button"
+                disabled={refining || aiInstruction.trim().length < 3}
+                onClick={() => {
+                  setRefining(true);
+                  setAiStatus("");
+                  void onAiRefine(aiInstruction.trim(), qualityMode)
+                    .then(() => {
+                      setAiInstruction("");
+                      setAiStatus("The website was reworked and saved.");
+                    })
+                    .catch((error: unknown) =>
+                      setAiStatus(error instanceof Error ? error.message : "AI rework failed."),
+                    )
+                    .finally(() => setRefining(false));
+                }}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-clay px-4 text-xs font-semibold text-bone transition hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Sparkles className="size-3.5" />{" "}
+                {refining ? "Reworking website…" : "Rework with AI"}
+              </button>
+              <p className="text-[10px] leading-relaxed text-bone/45">
+                UpVero measures large gaps, overflow, and low-contrast text before the AI revision.
+              </p>
+              {aiStatus ? (
+                <p className="rounded-lg bg-bone/5 px-3 py-2 text-xs text-bone" role="status">
+                  {aiStatus}
+                </p>
+              ) : null}
             </div>
           )}
 

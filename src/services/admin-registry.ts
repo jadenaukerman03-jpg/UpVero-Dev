@@ -3,18 +3,17 @@ import { z } from "zod";
 
 import { createLead } from "@/data/leads";
 import type { BusinessResearchProfile } from "@/data/research";
-import { siteConfigSchema } from "@/data/site";
+import { siteConfigSchema, validateSiteConfig, type SiteConfig } from "@/data/site";
+import { generationQualityModes } from "@/data/site-generation";
 import { normalizeResearchProfile } from "@/services/business-research";
 
 const cellSchema = z.string().trim().max(2_000);
-const rowSchema = z.record(z.string().max(160), cellSchema).refine(
-  (row) => Object.keys(row).length <= 80,
-  "Too many columns in a row.",
-);
-const mappingSchema = z.record(z.string().max(80), z.string().max(160)).refine(
-  (mapping) => Object.keys(mapping).length <= 20,
-  "Too many mapped columns.",
-);
+const rowSchema = z
+  .record(z.string().max(160), cellSchema)
+  .refine((row) => Object.keys(row).length <= 80, "Too many columns in a row.");
+const mappingSchema = z
+  .record(z.string().max(80), z.string().max(160))
+  .refine((mapping) => Object.keys(mapping).length <= 20, "Too many mapped columns.");
 const accessSchema = z.object({ accessToken: z.string().min(1).max(8_192) });
 
 const canonicalFields = [
@@ -68,7 +67,8 @@ function scoreBusiness(input: {
   targetIndustry: string;
 }) {
   const reasons: Array<{ kind: "confirmed" | "estimate"; points: number; text: string }> = [];
-  const searchable = `${input.name} ${input.industry ?? ""} ${input.entityType ?? ""}`.toLowerCase();
+  const searchable =
+    `${input.name} ${input.industry ?? ""} ${input.entityType ?? ""}`.toLowerCase();
   const target = input.targetIndustry.toLowerCase();
   const roofingMatch = target.includes("roof") && /roof|roofer|roofing/.test(searchable);
   let score = 0;
@@ -78,37 +78,71 @@ function scoreBusiness(input: {
     reasons.push({ kind: "confirmed", points: 45, text: "Registry information matches roofing." });
   } else if (target && searchable.includes(target)) {
     score += 35;
-    reasons.push({ kind: "confirmed", points: 35, text: `Registry information matches ${input.targetIndustry}.` });
+    reasons.push({
+      kind: "confirmed",
+      points: 35,
+      text: `Registry information matches ${input.targetIndustry}.`,
+    });
   } else {
-    reasons.push({ kind: "estimate", points: 0, text: "Industry match was not confirmed by the registry." });
+    reasons.push({
+      kind: "estimate",
+      points: 0,
+      text: "Industry match was not confirmed by the registry.",
+    });
   }
 
-  if (/active|current|good standing|approved/.test((input.registrationStatus ?? "").toLowerCase())) {
+  if (
+    /active|current|good standing|approved/.test((input.registrationStatus ?? "").toLowerCase())
+  ) {
     score += 15;
-    reasons.push({ kind: "confirmed", points: 15, text: "Registry status is active or in good standing." });
+    reasons.push({
+      kind: "confirmed",
+      points: 15,
+      text: "Registry status is active or in good standing.",
+    });
   }
 
   if (input.registrationDate) {
     const ageDays = (Date.now() - new Date(input.registrationDate).getTime()) / 86_400_000;
     if (ageDays >= 0 && ageDays <= 365) {
       score += 20;
-      reasons.push({ kind: "confirmed", points: 20, text: "Business was registered within the last year." });
+      reasons.push({
+        kind: "confirmed",
+        points: 20,
+        text: "Business was registered within the last year.",
+      });
     } else if (ageDays >= 0 && ageDays <= 730) {
       score += 10;
-      reasons.push({ kind: "confirmed", points: 10, text: "Business was registered within the last two years." });
+      reasons.push({
+        kind: "confirmed",
+        points: 10,
+        text: "Business was registered within the last two years.",
+      });
     }
   }
 
   if (!input.websiteUrl) {
     score += 15;
-    reasons.push({ kind: "confirmed", points: 15, text: "No website URL was supplied in the registry." });
+    reasons.push({
+      kind: "confirmed",
+      points: 15,
+      text: "No website URL was supplied in the registry.",
+    });
   } else {
-    reasons.push({ kind: "confirmed", points: 0, text: "A website URL was supplied; live quality is not assumed." });
+    reasons.push({
+      kind: "confirmed",
+      points: 0,
+      text: "A website URL was supplied; live quality is not assumed.",
+    });
   }
 
   if (!input.industry) {
     score += 5;
-    reasons.push({ kind: "estimate", points: 5, text: "Industry is incomplete, so live research may uncover a stronger fit." });
+    reasons.push({
+      kind: "estimate",
+      points: 5,
+      text: "Industry is incomplete, so live research may uncover a stronger fit.",
+    });
   }
 
   return { score: Math.min(100, score), reasons };
@@ -206,7 +240,14 @@ export const importRegistryBatch = createServerFn({ method: "POST" })
       });
       records.push({
         registry_id: registry.id,
-        dedupe_key: await dedupeKey([name, registeredAddress, city, state, zipCode, registrationDate]),
+        dedupe_key: await dedupeKey([
+          name,
+          registeredAddress,
+          city,
+          state,
+          zipCode,
+          registrationDate,
+        ]),
         name,
         entity_type: entityType ?? null,
         registration_date: registrationDate ?? null,
@@ -236,12 +277,13 @@ export const importRegistryBatch = createServerFn({ method: "POST" })
       .select("id")
       .in("dedupe_key", keys);
     if (lookupError) throw new Error("Unable to prepare imported businesses for review.");
-    const { error: candidateError } = await client
-      .from("registry_candidates")
-      .upsert((businesses ?? []).map((business) => ({ registry_business_id: business.id })), {
+    const { error: candidateError } = await client.from("registry_candidates").upsert(
+      (businesses ?? []).map((business) => ({ registry_business_id: business.id })),
+      {
         onConflict: "registry_business_id",
         ignoreDuplicates: true,
-      });
+      },
+    );
     if (candidateError) throw new Error("Unable to prepare imported businesses for review.");
     return { imported: records.length, skipped: data.rows.length - records.length };
   });
@@ -258,7 +300,11 @@ export const completeRegistryImport = createServerFn({ method: "POST" })
     if (countError) throw new Error("Unable to count imported businesses.");
     const { error } = await client
       .from("business_registries")
-      .update({ status: "complete", imported_count: count ?? 0, completed_at: new Date().toISOString() })
+      .update({
+        status: "complete",
+        imported_count: count ?? 0,
+        completed_at: new Date().toISOString(),
+      })
       .eq("id", registry.id)
       .eq("created_by", user.id);
     if (error) throw new Error("Unable to finalize the registry import.");
@@ -268,7 +314,10 @@ export const completeRegistryImport = createServerFn({ method: "POST" })
 export const listRegistryCandidates = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
     accessSchema
-      .extend({ registryId: z.string().uuid(), limit: z.number().int().min(1).max(100).default(50) })
+      .extend({
+        registryId: z.string().uuid(),
+        limit: z.number().int().min(1).max(100).default(50),
+      })
       .parse(data),
   )
   .handler(async ({ data }) => {
@@ -276,7 +325,9 @@ export const listRegistryCandidates = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: candidates, error } = await client
       .from("registry_candidates")
-      .select("id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at)), prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)")
+      .select(
+        "id, review_status, research_result, research_source_count, research_attempts, last_research_error, demo_requested_at, prospect_demos(id, preview_token, status, prospect_outreach_drafts(id, recipient_email, subject, body, status, prospect_outreach_tracking(id, stage, notes, last_contacted_at, replied_at)), prospect_sms_drafts(id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)), registry_businesses!inner(id, name, entity_type, registration_date, registration_status, registered_address, city, state, zip_code, owner_or_agent, industry, website_url, preliminary_score, preliminary_reasons, registry_id)",
+      )
       .eq("registry_businesses.registry_id", registry.id)
       .order("preliminary_score", { referencedTable: "registry_businesses", ascending: false })
       .limit(data.limit);
@@ -291,6 +342,7 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
         registryId: z.string().uuid(),
         candidateIds: z.array(z.string().uuid()).min(1).max(50),
         action: z.enum(["research", "demo"]),
+        qualityMode: z.enum(generationQualityModes).default("efficient"),
       })
       .parse(data),
   )
@@ -304,8 +356,12 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
       .eq("registry_businesses.registry_id", registry.id);
     if (lookupError) throw new Error("Unable to verify selected businesses.");
     const ids = (matching ?? []).map((candidate) => candidate.id);
-    if (ids.length !== data.candidateIds.length) respond(404, "One or more selected businesses are unavailable.");
-    if (data.action === "demo" && (matching ?? []).some((candidate) => candidate.review_status !== "research_complete")) {
+    if (ids.length !== data.candidateIds.length)
+      respond(404, "One or more selected businesses are unavailable.");
+    if (
+      data.action === "demo" &&
+      (matching ?? []).some((candidate) => candidate.review_status !== "research_complete")
+    ) {
       respond(409, "Only research-complete businesses can be approved for a private demo.");
     }
     const update =
@@ -318,7 +374,10 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
       registry_id: registry.id,
       created_by: user.id,
       job_type: data.action === "research" ? "research" : "demo_generation",
-      payload: { candidateIds: ids },
+      payload: {
+        candidateIds: ids,
+        ...(data.action === "demo" ? { qualityMode: data.qualityMode } : {}),
+      },
     });
     if (jobError) throw new Error("Unable to create the processing job.");
     return { queued: ids.length };
@@ -328,7 +387,10 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
 export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
     accessSchema
-      .extend({ registryId: z.string().uuid(), batchSize: z.number().int().min(1).max(5).default(5) })
+      .extend({
+        registryId: z.string().uuid(),
+        batchSize: z.number().int().min(1).max(5).default(5),
+      })
       .parse(data),
   )
   .handler(async ({ data }) => {
@@ -340,15 +402,24 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
       p_lock_seconds: 600,
     });
     if (claimError) throw new Error("Unable to claim a research job.");
-    const job = (Array.isArray(claimed) ? claimed[0] : claimed) as
-      | { id: string; payload: { candidateIds?: unknown } }
-      | null;
+    const job = (Array.isArray(claimed) ? claimed[0] : claimed) as {
+      id: string;
+      payload: { candidateIds?: unknown };
+    } | null;
     if (!job) return { completed: 0, failed: 0, processed: 0 };
-    const candidateIds = z.array(z.string().uuid()).min(1).max(50).safeParse(job.payload.candidateIds);
+    const candidateIds = z
+      .array(z.string().uuid())
+      .min(1)
+      .max(50)
+      .safeParse(job.payload.candidateIds);
     if (!candidateIds.success) {
       await client
         .from("registry_processing_jobs")
-        .update({ status: "failed", completed_at: new Date().toISOString(), last_error: "Invalid job payload." })
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          last_error: "Invalid job payload.",
+        })
         .eq("id", job.id);
       throw new Error("The claimed research job has an invalid payload.");
     }
@@ -356,7 +427,9 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
     const remainingIds = candidateIds.data.slice(data.batchSize);
     const { data: queued, error } = await client
       .from("registry_candidates")
-      .select("id, research_attempts, registry_businesses!inner(name, city, state, website_url, registry_id)")
+      .select(
+        "id, research_attempts, registry_businesses!inner(name, city, state, website_url, registry_id)",
+      )
       .in("id", processingIds)
       .eq("review_status", "research_queued")
       .eq("registry_businesses.registry_id", registry.id)
@@ -381,12 +454,14 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
           "consume_admin_provider_daily_budget",
           { p_owner_id: user.id, p_operation: "business_research", p_daily_limit: 50 },
         );
-        if (budgetError || withinDailyBudget !== true) throw new Error("Daily research budget reached. Try again tomorrow.");
+        if (budgetError || withinDailyBudget !== true)
+          throw new Error("Daily research budget reached. Try again tomorrow.");
         const { data: withinQuota, error: quotaError } = await client.rpc(
           "consume_provider_operation_quota",
           { p_owner_id: user.id, p_operation: "business_research" },
         );
-        if (quotaError || withinQuota !== true) throw new Error("Research quota reached. Try again later.");
+        if (quotaError || withinQuota !== true)
+          throw new Error("Research quota reached. Try again later.");
         const { researchBusinessFromQuery } = await import("./research-business.server");
         const result = await researchBusinessFromQuery({
           businessName: business.name,
@@ -414,7 +489,9 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
             review_status: "research_failed",
             research_attempts: candidate.research_attempts + 1,
             last_research_error:
-              researchError instanceof Error ? researchError.message.slice(0, 500) : "Research failed.",
+              researchError instanceof Error
+                ? researchError.message.slice(0, 500)
+                : "Research failed.",
           })
           .eq("id", candidate.id);
         failed += 1;
@@ -427,7 +504,12 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
         completed_at: remainingIds.length > 0 ? null : new Date().toISOString(),
         locked_until: null,
         payload: { candidateIds: remainingIds },
-        result: { completed, failed, processed: (queued ?? []).length, remaining: remainingIds.length },
+        result: {
+          completed,
+          failed,
+          processed: (queued ?? []).length,
+          remaining: remainingIds.length,
+        },
       })
       .eq("id", job.id);
     if (finishError) throw new Error("Unable to finalize the research job.");
@@ -436,7 +518,9 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
 
 export const listRegistryProcessingJobs = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
-    accessSchema.extend({ registryId: z.string().uuid(), limit: z.number().int().min(1).max(25).default(10) }).parse(data),
+    accessSchema
+      .extend({ registryId: z.string().uuid(), limit: z.number().int().min(1).max(25).default(10) })
+      .parse(data),
   )
   .handler(async ({ data }) => {
     const { user } = await administrator(data.accessToken);
@@ -464,24 +548,35 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
       p_lock_seconds: 600,
     });
     if (claimError) throw new Error("Unable to claim a demo job.");
-    const job = (Array.isArray(claimed) ? claimed[0] : claimed) as
-      | { id: string; registry_id: string; payload: { candidateIds?: unknown } }
-      | null;
+    const job = (Array.isArray(claimed) ? claimed[0] : claimed) as {
+      id: string;
+      registry_id: string;
+      payload: { candidateIds?: unknown; qualityMode?: unknown };
+    } | null;
     if (!job) return { generated: 0, remaining: 0, previewToken: undefined };
     if (job.registry_id !== registry.id) {
       await client
         .from("registry_processing_jobs")
         .update({ status: "queued", locked_until: null })
         .eq("id", job.id);
-      respond(409, "A queued demo belongs to a different registry. Select that registry before processing it.");
+      respond(
+        409,
+        "A queued demo belongs to a different registry. Select that registry before processing it.",
+      );
     }
     const parsedIds = z.array(z.string().uuid()).min(1).max(50).safeParse(job.payload.candidateIds);
     if (!parsedIds.success) throw new Error("The claimed demo job has an invalid payload.");
     const candidateId = parsedIds.data[0]!;
     const remainingIds = parsedIds.data.slice(1);
+    const qualityMode = z
+      .enum(generationQualityModes)
+      .catch("efficient")
+      .parse(job.payload.qualityMode);
     const { data: candidate, error: candidateError } = await client
       .from("registry_candidates")
-      .select("id, research_result, registry_businesses!inner(name, city, state, industry, website_url, registration_date, registry_id)")
+      .select(
+        "id, research_result, registry_businesses!inner(name, city, state, industry, website_url, registration_date, registry_id)",
+      )
       .eq("id", candidateId)
       .eq("review_status", "demo_queued")
       .eq("registry_businesses.registry_id", registry.id)
@@ -500,14 +595,18 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
         "consume_admin_provider_daily_budget",
         { p_owner_id: user.id, p_operation: "ai_generation", p_daily_limit: 25 },
       );
-      if (budgetError || dailyBudget !== true) throw new Error("Daily demo-generation budget reached. Try again tomorrow.");
+      if (budgetError || dailyBudget !== true)
+        throw new Error("Daily demo-generation budget reached. Try again tomorrow.");
       const { data: hourlyQuota, error: quotaError } = await client.rpc(
         "consume_provider_operation_quota",
         { p_owner_id: user.id, p_operation: "ai_generation" },
       );
-      if (quotaError || hourlyQuota !== true) throw new Error("Demo-generation quota reached. Try again later.");
+      if (quotaError || hourlyQuota !== true)
+        throw new Error("Demo-generation quota reached. Try again later.");
       const normalized = candidate.research_result
-        ? normalizeResearchProfile(candidate.research_result as Parameters<typeof normalizeResearchProfile>[0])
+        ? normalizeResearchProfile(
+            candidate.research_result as Parameters<typeof normalizeResearchProfile>[0],
+          )
         : {};
       const lead = createLead({
         ...normalized,
@@ -519,11 +618,71 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
         source: "admin-registry-demo",
       });
       const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
-      const config = await createAiSiteConfig(lead);
+      let config: SiteConfig = await createAiSiteConfig(lead, { qualityMode });
+      const { sourceImagesForSite } = await import("./source-images-for-site.server");
+      const briefs = Object.fromEntries(
+        [
+          ["hero", config.assets.hero.brief ?? config.assets.hero.alt],
+          ["about", config.assets.about.brief ?? config.assets.about.alt],
+          ["showcase-1", config.assets.gallery?.[0]?.brief],
+          ["showcase-2", config.assets.gallery?.[1]?.brief],
+          ["showcase-3", config.assets.gallery?.[2]?.brief],
+        ].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      );
+      const imageResult = await sourceImagesForSite({
+        lead,
+        style: config.design?.visualDirection ?? "professional",
+        briefs,
+      });
+      const selectedImages = Object.fromEntries(
+        imageResult.assets.map((asset) => [asset.section, asset]),
+      );
+      config = validateSiteConfig({
+        ...config,
+        seo: selectedImages["hero"]?.src
+          ? { ...config.seo, socialImage: selectedImages["hero"].src }
+          : config.seo,
+        assets: {
+          hero: selectedImages["hero"]?.src
+            ? {
+                ...config.assets.hero,
+                src: selectedImages["hero"].src,
+                alt: selectedImages["hero"].alt,
+              }
+            : config.assets.hero,
+          about: selectedImages["about"]?.src
+            ? {
+                ...config.assets.about,
+                src: selectedImages["about"].src,
+                alt: selectedImages["about"].alt,
+              }
+            : config.assets.about,
+          gallery: ["showcase-1", "showcase-2", "showcase-3"].map((section, index) => {
+            const selected = selectedImages[section];
+            const current = config.assets.gallery?.[index];
+            return selected?.src
+              ? { ...current, src: selected.src, alt: selected.alt }
+              : (current ?? { alt: `${config.brand.name} featured work ${index + 1}` });
+          }),
+        },
+        assetAttributions: imageResult.assets
+          .filter((asset) => asset.originalSourceUrl)
+          .map((asset) => ({
+            label: asset.attribution ?? "Photo provided by Pexels",
+            href: asset.originalSourceUrl!,
+          })),
+      });
       const { data: demo, error: demoError } = await client
         .from("prospect_demos")
         .upsert(
-          { registry_candidate_id: candidate.id, created_by: user.id, status: "ready", site_config: config, generated_at: new Date().toISOString(), last_error: null },
+          {
+            registry_candidate_id: candidate.id,
+            created_by: user.id,
+            status: "ready",
+            site_config: config,
+            generated_at: new Date().toISOString(),
+            last_error: null,
+          },
           { onConflict: "registry_candidate_id" },
         )
         .select("id, preview_token")
@@ -531,9 +690,15 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
       if (demoError || !demo) throw new Error("Unable to save the private demo.");
       const { error: crmError } = await client
         .from("prospect_crm_records")
-        .upsert({ prospect_demo_id: demo.id, created_by: user.id }, { onConflict: "prospect_demo_id", ignoreDuplicates: true });
+        .upsert(
+          { prospect_demo_id: demo.id, created_by: user.id },
+          { onConflict: "prospect_demo_id", ignoreDuplicates: true },
+        );
       if (crmError) throw new Error("Unable to create the private-demo CRM record.");
-      await client.from("registry_candidates").update({ review_status: "demo_complete" }).eq("id", candidate.id);
+      await client
+        .from("registry_candidates")
+        .update({ review_status: "demo_complete" })
+        .eq("id", candidate.id);
       await client
         .from("registry_processing_jobs")
         .update({
@@ -541,18 +706,35 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
           payload: { candidateIds: remainingIds },
           locked_until: null,
           completed_at: remainingIds.length ? null : new Date().toISOString(),
-          result: { generated: 1, remaining: remainingIds.length },
+          result: {
+            generated: 1,
+            remaining: remainingIds.length,
+            qualityMode,
+            qualityScore: config.generation?.qualityScore,
+            actualCostCents: config.generation?.actualCostCents,
+            imagesSelected: imageResult.assets.length,
+          },
         })
         .eq("id", job.id);
       return { generated: 1, remaining: remainingIds.length, previewToken: demo.preview_token };
     } catch (error) {
       await client
         .from("registry_candidates")
-        .update({ review_status: "research_complete", last_research_error: error instanceof Error ? error.message.slice(0, 500) : "Demo generation failed." })
+        .update({
+          review_status: "research_complete",
+          last_research_error:
+            error instanceof Error ? error.message.slice(0, 500) : "Demo generation failed.",
+        })
         .eq("id", candidate.id);
       await client
         .from("registry_processing_jobs")
-        .update({ status: "failed", locked_until: null, completed_at: new Date().toISOString(), last_error: error instanceof Error ? error.message.slice(0, 500) : "Demo generation failed." })
+        .update({
+          status: "failed",
+          locked_until: null,
+          completed_at: new Date().toISOString(),
+          last_error:
+            error instanceof Error ? error.message.slice(0, 500) : "Demo generation failed.",
+        })
         .eq("id", job.id);
       throw error;
     }
@@ -624,7 +806,9 @@ export const prepareProspectOutreachDraft = createServerFn({ method: "POST" })
     if (candidateError || !candidate) respond(404, "This completed demo is unavailable.");
     const { data: demo, error: demoError } = await client
       .from("prospect_demos")
-      .select("id, preview_token, prospect_outreach_drafts(id, recipient_email, subject, body, status)")
+      .select(
+        "id, preview_token, prospect_outreach_drafts(id, recipient_email, subject, body, status)",
+      )
       .eq("registry_candidate_id", candidate.id)
       .eq("created_by", user.id)
       .eq("status", "ready")
@@ -660,7 +844,9 @@ export const saveProspectOutreachDraft = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error: lookupError } = await client
       .from("prospect_outreach_drafts")
-      .select("id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select(
+        "id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+      )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
@@ -710,7 +896,8 @@ function normalizePublicResearchPhone(value: string | undefined) {
   const digits = value.replace(/\D/g, "");
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  if (value.trim().startsWith("+") && digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  if (value.trim().startsWith("+") && digits.length >= 8 && digits.length <= 15)
+    return `+${digits}`;
   return undefined;
 }
 
@@ -722,14 +909,26 @@ function verifiedResearchPhone(profile: unknown) {
   const source = phone.sources.find((item) => !item.isMock && Boolean(item.sourceUrl));
   const normalized = normalizePublicResearchPhone(phone.value);
   if (!source || !normalized) return undefined;
-  return { phone: phone.value, normalized, confidence: phone.confidence, sourceUrl: source.sourceUrl! };
+  return {
+    phone: phone.value,
+    normalized,
+    confidence: phone.confidence,
+    sourceUrl: source.sourceUrl!,
+  };
 }
 
 async function recordSmsEvent(
-  client: Awaited<ReturnType<typeof import("@/lib/supabase/server")["createSupabaseAdminClient"]>>,
+  client: Awaited<
+    ReturnType<(typeof import("@/lib/supabase/server"))["createSupabaseAdminClient"]>
+  >,
   draftId: string,
   userId: string,
-  eventType: "draft_prepared" | "draft_saved" | "copied_for_manual_send" | "consent_recorded" | "marked_do_not_contact",
+  eventType:
+    | "draft_prepared"
+    | "draft_saved"
+    | "copied_for_manual_send"
+    | "consent_recorded"
+    | "marked_do_not_contact",
   details: Record<string, string> = {},
 ) {
   const { error } = await client.from("prospect_sms_events").insert({
@@ -777,7 +976,9 @@ export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
     const existing = (demo.prospect_sms_drafts ?? [])[0];
     if (existing) return existing;
     const business = candidate.registry_businesses as unknown as { name: string };
-    const evidence = verifiedResearchPhone((candidate as { research_result?: unknown }).research_result);
+    const evidence = verifiedResearchPhone(
+      (candidate as { research_result?: unknown }).research_result,
+    );
     if (evidence) {
       const { data: suppression, error: suppressionError } = await client
         .from("prospect_sms_suppressions")
@@ -785,7 +986,8 @@ export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
         .eq("recipient_phone_normalized", evidence.normalized)
         .maybeSingle();
       if (suppressionError) throw new Error("Unable to verify this research phone number.");
-      if (suppression) respond(409, "The verified public number is permanently marked do-not-contact.");
+      if (suppression)
+        respond(409, "The verified public number is permanently marked do-not-contact.");
     }
     const { data: draft, error: insertError } = await client
       .from("prospect_sms_drafts")
@@ -798,7 +1000,9 @@ export const prepareProspectSmsDraft = createServerFn({ method: "POST" })
         phone_confidence: evidence?.confidence ?? "unverified",
         body: manualSmsCopy(business.name, `${previewOrigin()}/demo/${demo.preview_token}`),
       })
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
+      .select(
+        "id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)",
+      )
       .single();
     if (insertError || !draft) throw new Error("Unable to prepare the SMS draft.");
     await recordSmsEvent(client, draft.id, user.id, "draft_prepared", {
@@ -825,7 +1029,9 @@ export const saveProspectSmsDraft = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error: lookupError } = await client
       .from("prospect_sms_drafts")
-      .select("id, recipient_phone_normalized, phone_source_url, phone_confidence, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select(
+        "id, recipient_phone_normalized, phone_source_url, phone_confidence, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+      )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
@@ -858,7 +1064,9 @@ export const saveProspectSmsDraft = createServerFn({ method: "POST" })
       })
       .eq("id", draft.id)
       .eq("created_by", user.id)
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
+      .select(
+        "id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)",
+      )
       .single();
     if (updateError || !saved) throw new Error("Unable to save the SMS draft.");
     await recordSmsEvent(client, saved.id, user.id, "draft_saved", { stage: data.stage });
@@ -868,21 +1076,26 @@ export const saveProspectSmsDraft = createServerFn({ method: "POST" })
 /** Permanently suppresses a manually reviewed SMS recipient. It never sends a reply. */
 export const markProspectSmsDoNotContact = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
-    smsDraftSchema.extend({ draftId: z.string().uuid(), reason: z.string().trim().min(1).max(500) }).parse(data),
+    smsDraftSchema
+      .extend({ draftId: z.string().uuid(), reason: z.string().trim().min(1).max(500) })
+      .parse(data),
   )
   .handler(async ({ data }) => {
     const { user } = await administrator(data.accessToken);
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error: lookupError } = await client
       .from("prospect_sms_drafts")
-      .select("id, recipient_phone_normalized, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select(
+        "id, recipient_phone_normalized, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+      )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
       .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
       .maybeSingle();
     if (lookupError || !draft) respond(404, "This SMS draft is unavailable.");
-    if (!draft.recipient_phone_normalized) respond(400, "Save a valid phone number before marking it do-not-contact.");
+    if (!draft.recipient_phone_normalized)
+      respond(400, "Save a valid phone number before marking it do-not-contact.");
     const { error: suppressionError } = await client.from("prospect_sms_suppressions").upsert(
       {
         recipient_phone_normalized: draft.recipient_phone_normalized,
@@ -898,10 +1111,14 @@ export const markProspectSmsDoNotContact = createServerFn({ method: "POST" })
       .update({ stage: "do_not_contact" })
       .eq("id", draft.id)
       .eq("created_by", user.id)
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
+      .select(
+        "id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)",
+      )
       .single();
     if (updateError || !saved) throw new Error("Unable to update this SMS draft.");
-    await recordSmsEvent(client, saved.id, user.id, "marked_do_not_contact", { reason: data.reason });
+    await recordSmsEvent(client, saved.id, user.id, "marked_do_not_contact", {
+      reason: data.reason,
+    });
     return saved;
   });
 
@@ -913,15 +1130,19 @@ export const recordProspectSmsCopy = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error } = await client
       .from("prospect_sms_drafts")
-      .select("id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select(
+        "id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+      )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
       .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
       .maybeSingle();
     if (error || !draft) respond(404, "This SMS draft is unavailable.");
-    if (draft.stage === "do_not_contact") respond(409, "This phone number is marked do-not-contact.");
-    if (!draft.recipient_phone_normalized) respond(400, "Save a valid phone number before copying this text.");
+    if (draft.stage === "do_not_contact")
+      respond(409, "This phone number is marked do-not-contact.");
+    if (!draft.recipient_phone_normalized)
+      respond(400, "Save a valid phone number before copying this text.");
     await recordSmsEvent(client, draft.id, user.id, "copied_for_manual_send");
     return { recorded: true };
   });
@@ -938,25 +1159,37 @@ export const recordProspectSmsConsent = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error } = await client
       .from("prospect_sms_drafts")
-      .select("id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select(
+        "id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+      )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
       .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
       .maybeSingle();
     if (error || !draft) respond(404, "This SMS draft is unavailable.");
-    if (draft.stage === "do_not_contact") respond(409, "This phone number is marked do-not-contact.");
-    if (!draft.recipient_phone_normalized) respond(400, "Save a valid phone number before recording consent.");
+    if (draft.stage === "do_not_contact")
+      respond(409, "This phone number is marked do-not-contact.");
+    if (!draft.recipient_phone_normalized)
+      respond(400, "Save a valid phone number before recording consent.");
     const timestamp = new Date().toISOString();
     const { data: saved, error: updateError } = await client
       .from("prospect_sms_drafts")
-      .update({ consent_status: "opted_in", consent_source: data.consentSource, consent_recorded_at: timestamp })
+      .update({
+        consent_status: "opted_in",
+        consent_source: data.consentSource,
+        consent_recorded_at: timestamp,
+      })
       .eq("id", draft.id)
       .eq("created_by", user.id)
-      .select("id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)")
+      .select(
+        "id, recipient_phone, body, stage, notes, last_contacted_at, replied_at, phone_source_url, phone_confidence, consent_status, consent_source, consent_recorded_at, prospect_sms_events(id, event_type, details, created_at)",
+      )
       .single();
     if (updateError || !saved) throw new Error("Unable to record SMS consent.");
-    await recordSmsEvent(client, saved.id, user.id, "consent_recorded", { source: data.consentSource });
+    await recordSmsEvent(client, saved.id, user.id, "consent_recorded", {
+      source: data.consentSource,
+    });
     return saved;
   });
 
@@ -977,7 +1210,9 @@ export const saveProspectOutreachTracking = createServerFn({ method: "POST" })
     const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
     const { data: draft, error: lookupError } = await client
       .from("prospect_outreach_drafts")
-      .select("id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))")
+      .select(
+        "id, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+      )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
       .eq("prospect_demos.created_by", user.id)
@@ -1017,7 +1252,15 @@ export const getRegistryPipelineSummary = createServerFn({ method: "POST" })
       "demo_complete",
       "dismissed",
     ] as const;
-    const outreachStages = ["ready", "contacted", "replied", "meeting", "won", "lost", "do_not_contact"] as const;
+    const outreachStages = [
+      "ready",
+      "contacted",
+      "replied",
+      "meeting",
+      "won",
+      "lost",
+      "do_not_contact",
+    ] as const;
     const candidateCounts = await Promise.all(
       candidateStatuses.map(async (status) => {
         const { count, error } = await client
@@ -1033,8 +1276,14 @@ export const getRegistryPipelineSummary = createServerFn({ method: "POST" })
       outreachStages.map(async (stage) => {
         const { count, error } = await client
           .from("prospect_outreach_tracking")
-          .select("id, prospect_outreach_drafts!inner(prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id))))", { count: "exact", head: true })
-          .eq("prospect_outreach_drafts.prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+          .select(
+            "id, prospect_outreach_drafts!inner(prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id))))",
+            { count: "exact", head: true },
+          )
+          .eq(
+            "prospect_outreach_drafts.prospect_demos.registry_candidates.registry_businesses.registry_id",
+            registry.id,
+          )
           .eq("stage", stage);
         if (error) throw new Error("Unable to summarize manual outreach.");
         return [stage, count ?? 0] as const;
@@ -1044,7 +1293,10 @@ export const getRegistryPipelineSummary = createServerFn({ method: "POST" })
       outreachStages.map(async (stage) => {
         const { count, error } = await client
           .from("prospect_sms_drafts")
-          .select("id, prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id)))", { count: "exact", head: true })
+          .select(
+            "id, prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id)))",
+            { count: "exact", head: true },
+          )
           .eq("prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
           .eq("stage", stage);
         if (error) throw new Error("Unable to summarize manual SMS drafts.");
@@ -1053,8 +1305,14 @@ export const getRegistryPipelineSummary = createServerFn({ method: "POST" })
     );
     const { count: copiedCount, error: copiedError } = await client
       .from("prospect_sms_events")
-      .select("id, prospect_sms_drafts!inner(prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id))))", { count: "exact", head: true })
-      .eq("prospect_sms_drafts.prospect_demos.registry_candidates.registry_businesses.registry_id", registry.id)
+      .select(
+        "id, prospect_sms_drafts!inner(prospect_demos!inner(registry_candidates!inner(registry_businesses!inner(registry_id))))",
+        { count: "exact", head: true },
+      )
+      .eq(
+        "prospect_sms_drafts.prospect_demos.registry_candidates.registry_businesses.registry_id",
+        registry.id,
+      )
       .eq("event_type", "copied_for_manual_send");
     if (copiedError) throw new Error("Unable to summarize manual text activity.");
     return {

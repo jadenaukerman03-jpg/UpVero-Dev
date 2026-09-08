@@ -26,8 +26,16 @@ async function requireWithinCustomerQuota(
       p_operation: operation,
     },
   );
-  if (error || data !== true)
-    authorizationFailure(429, "Too many requests. Please try again later.");
+  if (error) {
+    console.error("Customer quota verification failed", {
+      operation,
+      ownerId,
+      code: error.code,
+      message: error.message,
+    });
+    authorizationFailure(503, "Request protection is temporarily unavailable. Please try again.");
+  }
+  if (data !== true) authorizationFailure(429, "Too many requests. Please try again later.");
 }
 
 async function requireAuthenticatedOwner(accessToken: string | undefined) {
@@ -262,31 +270,52 @@ export const getOwnedWebsite = createServerFn({ method: "POST" })
  */
 export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
-    z.object({ accessToken: accessTokenSchema, previewToken: z.string().uuid(), claimToken: z.string().uuid() }).parse(data),
+    z
+      .object({
+        accessToken: accessTokenSchema,
+        previewToken: z.string().uuid(),
+        claimToken: z.string().uuid(),
+      })
+      .parse(data),
   )
   .handler(async ({ data }) => {
-    const { requireAuthenticatedCustomer, createSupabaseAdminClient } = await import("@/lib/supabase/server");
+    const { requireAuthenticatedCustomer, createSupabaseAdminClient } =
+      await import("@/lib/supabase/server");
     const { user } = await requireAuthenticatedCustomer(data.accessToken);
     const admin = createSupabaseAdminClient();
     const { data: demo, error: demoError } = await admin
       .from("prospect_demos")
-      .select("id, created_by, site_config, claimed_by, claimed_website_id, claim_expires_at, registry_candidates!inner(registry_businesses!inner(name, industry))")
+      .select(
+        "id, created_by, site_config, claimed_by, claimed_website_id, claim_expires_at, registry_candidates!inner(registry_businesses!inner(name, industry))",
+      )
       .eq("preview_token", data.previewToken)
       .eq("claim_token", data.claimToken)
       .eq("status", "ready")
       .maybeSingle();
-    if (demoError || !demo || (demo.claim_expires_at && new Date(demo.claim_expires_at) <= new Date())) {
+    if (
+      demoError ||
+      !demo ||
+      (demo.claim_expires_at && new Date(demo.claim_expires_at) <= new Date())
+    ) {
       return authorizationFailure(404, "This private preview is unavailable for claiming.");
     }
     if (demo.claimed_by && demo.claimed_by !== user.id) {
       return authorizationFailure(409, "This private preview has already been claimed.");
     }
-    if (demo.claimed_website_id) return { websiteId: demo.claimed_website_id, alreadyClaimed: true };
+    if (demo.claimed_website_id)
+      return { websiteId: demo.claimed_website_id, alreadyClaimed: true };
 
     const config = siteConfigSchema.safeParse(demo.site_config);
-    if (!config.success) throw new Error("This private preview cannot be converted into a website draft.");
-    const source = demo.registry_candidates as unknown as { registry_businesses: { name: string; industry: string | null } | Array<{ name: string; industry: string | null }> };
-    const businessInfo = Array.isArray(source.registry_businesses) ? source.registry_businesses[0] : source.registry_businesses;
+    if (!config.success)
+      throw new Error("This private preview cannot be converted into a website draft.");
+    const source = demo.registry_candidates as unknown as {
+      registry_businesses:
+        | { name: string; industry: string | null }
+        | Array<{ name: string; industry: string | null }>;
+    };
+    const businessInfo = Array.isArray(source.registry_businesses)
+      ? source.registry_businesses[0]
+      : source.registry_businesses;
     if (!businessInfo) throw new Error("This private preview is missing business information.");
 
     const { data: claim, error: claimError } = await admin
@@ -298,8 +327,13 @@ export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
       .maybeSingle();
     if (claimError) throw new Error("Unable to reserve this private preview.");
     if (!claim) {
-      const { data: current } = await admin.from("prospect_demos").select("claimed_by, claimed_website_id").eq("id", demo.id).maybeSingle();
-      if (current?.claimed_by === user.id && current.claimed_website_id) return { websiteId: current.claimed_website_id, alreadyClaimed: true };
+      const { data: current } = await admin
+        .from("prospect_demos")
+        .select("claimed_by, claimed_website_id")
+        .eq("id", demo.id)
+        .maybeSingle();
+      if (current?.claimed_by === user.id && current.claimed_website_id)
+        return { websiteId: current.claimed_website_id, alreadyClaimed: true };
       return authorizationFailure(409, "This private preview has already been claimed.");
     }
 
@@ -311,11 +345,20 @@ export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
     if (businessError || !business) throw new Error("Unable to create your business workspace.");
     const { data: website, error: websiteError } = await admin
       .from("websites")
-      .insert({ owner_id: user.id, business_id: business.id, name: businessInfo.name, site_config: config.data })
+      .insert({
+        owner_id: user.id,
+        business_id: business.id,
+        name: businessInfo.name,
+        site_config: config.data,
+      })
       .select("id")
       .single();
     if (websiteError || !website) throw new Error("Unable to create your website draft.");
-    const { error: linkError } = await admin.from("prospect_demos").update({ claimed_website_id: website.id }).eq("id", demo.id).eq("claimed_by", user.id);
+    const { error: linkError } = await admin
+      .from("prospect_demos")
+      .update({ claimed_website_id: website.id })
+      .eq("id", demo.id)
+      .eq("claimed_by", user.id);
     if (linkError) throw new Error("Unable to finish claiming this preview.");
     const timestamp = new Date().toISOString();
     const { data: existingCrm } = await admin
@@ -332,7 +375,12 @@ export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
           .single()
       : await admin
           .from("prospect_crm_records")
-          .insert({ prospect_demo_id: demo.id, created_by: demo.created_by, stage: "replied", replied_at: timestamp })
+          .insert({
+            prospect_demo_id: demo.id,
+            created_by: demo.created_by,
+            stage: "replied",
+            replied_at: timestamp,
+          })
           .select("id")
           .single();
     if (crm) {
@@ -352,9 +400,8 @@ export const deleteOwnedWebsiteDraft = createServerFn({ method: "POST" })
     z.object({ accessToken: accessTokenSchema, websiteId: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { requireAuthenticatedCustomer, createSupabaseAdminClient } = await import(
-      "@/lib/supabase/server"
-    );
+    const { requireAuthenticatedCustomer, createSupabaseAdminClient } =
+      await import("@/lib/supabase/server");
     const { client, user } = await requireAuthenticatedCustomer(data.accessToken);
     const { data: draft, error: lookupError } = await client
       .from("websites")

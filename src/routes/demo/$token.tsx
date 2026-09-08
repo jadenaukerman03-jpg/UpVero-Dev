@@ -31,8 +31,7 @@ function PrivateProspectDemoRoute() {
         if (loaded.config) {
           setConfig(loaded.config);
           setClaimToken(loaded.claimToken ?? null);
-        }
-        else setUnavailable(true);
+        } else setUnavailable(true);
       })
       .catch(() => {
         if (active) setUnavailable(true);
@@ -53,7 +52,9 @@ function PrivateProspectDemoRoute() {
     setClaiming(true);
     setClaimNotice("");
     try {
-      const result = await claimDemo({ data: { accessToken: data.session.access_token, previewToken: token, claimToken } });
+      const result = await claimDemo({
+        data: { accessToken: data.session.access_token, previewToken: token, claimToken },
+      });
       const claimed = result as { websiteId: string };
       window.location.assign(`/launch?website=${encodeURIComponent(claimed.websiteId)}`);
     } catch (error) {
@@ -87,5 +88,38 @@ function PrivateProspectDemoRoute() {
     );
   }
 
-  return <><div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-2xl border border-stone-300 bg-white p-4 shadow-lg"><p className="text-sm font-semibold text-stone-900">Like this website?</p><p className="mt-1 text-sm text-stone-600">Claim this private draft, create your account, then choose a plan when you are ready.</p>{claimToken ? <button type="button" className="mt-3 rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white" disabled={claiming} onClick={() => void claim()}>{claiming ? "Claiming preview…" : "Claim this website"}</button> : <p className="mt-3 text-sm font-medium text-stone-700">This preview has already been claimed.</p>}{claimNotice ? <p className="mt-2 text-sm text-red-700" role="status">{claimNotice}</p> : null}</div><SitePreview config={config} showVisualDirectionLayout leadCaptureTarget={{ kind: "private_demo", token }} /></>;
+  return (
+    <>
+      <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-2xl border border-stone-300 bg-white p-4 shadow-lg">
+        <p className="text-sm font-semibold text-stone-900">Like this website?</p>
+        <p className="mt-1 text-sm text-stone-600">
+          Claim this private draft, create your account, then choose a plan when you are ready.
+        </p>
+        {claimToken ? (
+          <button
+            type="button"
+            className="mt-3 rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white"
+            disabled={claiming}
+            onClick={() => void claim()}
+          >
+            {claiming ? "Claiming preview…" : "Claim this website"}
+          </button>
+        ) : (
+          <p className="mt-3 text-sm font-medium text-stone-700">
+            This preview has already been claimed.
+          </p>
+        )}
+        {claimNotice ? (
+          <p className="mt-2 text-sm text-red-700" role="status">
+            {claimNotice}
+          </p>
+        ) : null}
+      </div>
+      <SitePreview
+        config={config}
+        showVisualDirectionLayout
+        leadCaptureTarget={{ kind: "private_demo", token }}
+      />
+    </>
+  );
 }
