@@ -9,19 +9,35 @@ import { findPexelsImage } from "./pexels-image-provider.server";
 
 function requirementFor(
   request: ImageSourcingRequest,
-  section: "hero" | "about",
+  section: ImageRequirement["section"],
 ): ImageRequirement {
   const profile = createVisualProfile(request.lead, request.style);
-  const serviceContext = profile.services.slice(0, 2).join(" ") || profile.industry;
+  const showcaseIndex = section.startsWith("showcase-") ? Number(section.slice(-1)) - 1 : 0;
+  const featuredService =
+    profile.services[showcaseIndex] || profile.services[0] || profile.industry;
+  const serviceContext = section.startsWith("showcase-")
+    ? featuredService
+    : profile.services.slice(0, 2).join(" ") || profile.industry;
   const locationContext = profile.location ? ` ${profile.location}` : "";
-  const subject = section === "hero" ? "professional exterior project" : "professional environment";
+  const subject =
+    section === "hero"
+      ? "premium business environment finished result"
+      : section === "about"
+        ? "professional workspace tools materials interior"
+        : "editorial detail finished result product equipment";
   const locationAwareQuery = `${profile.industry} ${serviceContext}${locationContext} ${subject}`;
+  const creativeBrief = request.briefs?.[section]?.trim().slice(0, 300);
   return {
     section,
-    dimensions: section === "hero" ? "1536x1024" : "1024x1536",
-    orientation: section === "hero" ? "landscape" : "portrait",
-    searchQuery: `${profile.businessName} ${locationAwareQuery}`,
-    searchQueries: [locationAwareQuery, `${profile.industry} ${serviceContext} ${subject}`],
+    dimensions: section === "hero" ? "1536x1024" : section === "about" ? "1024x1536" : "1200x900",
+    orientation: section === "about" ? "portrait" : "landscape",
+    searchQuery: creativeBrief ? `${creativeBrief}${locationContext}` : locationAwareQuery,
+    searchQueries: [
+      ...(creativeBrief ? [`${profile.industry} ${creativeBrief}`] : []),
+      `${profile.industry} ${serviceContext} ${subject}`,
+      `${serviceContext} ${subject}`,
+      `${profile.industry} ${subject}`,
+    ],
     alt: imageAlt(profile, section),
   };
 }
@@ -29,12 +45,12 @@ function requirementFor(
 export async function sourceImagesForSite(
   request: ImageSourcingRequest,
 ): Promise<ImageSelectionResult> {
-  const sections = request.sections ?? ["hero", "about"];
+  const sections = request.sections ?? ["hero", "about", "showcase-1", "showcase-2", "showcase-3"];
   const profile = createVisualProfile(request.lead, request.style);
   const requirements = sections.map((section) => requirementFor(request, section));
   const usedSourceUrls = new Set<string>();
   const selected: ImageAsset[] = [];
-  const missing: ("hero" | "about")[] = [];
+  const missing: ImageRequirement["section"][] = [];
 
   for (const requirement of requirements) {
     const pexelsImage = await findPexelsImage(requirement, usedSourceUrls);

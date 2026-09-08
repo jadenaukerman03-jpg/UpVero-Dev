@@ -10,7 +10,8 @@ export const visualStyleOptions = [
 ] as const;
 
 export type VisualStyle = (typeof visualStyleOptions)[number];
-export type ImageSection = "hero" | "about";
+export const imageSections = ["hero", "about", "showcase-1", "showcase-2", "showcase-3"] as const;
+export type ImageSection = (typeof imageSections)[number];
 export type ImageSelectionStatus = "completed" | "failed" | "unavailable";
 export type ImageSourceType = "pexels";
 
@@ -30,7 +31,7 @@ export interface ImageAsset {
   status: ImageSelectionStatus;
   alt: string;
   prompt: string;
-  dimensions: "1536x1024" | "1024x1536";
+  dimensions: "1536x1024" | "1024x1536" | "1200x900";
   generatedAt?: string | undefined;
   src?: string | undefined;
   cacheKey: string;
@@ -46,7 +47,7 @@ export interface ImageAsset {
 
 export interface ImageRequirement {
   section: ImageSection;
-  dimensions: "1536x1024" | "1024x1536";
+  dimensions: "1536x1024" | "1024x1536" | "1200x900";
   orientation: "landscape" | "portrait";
   searchQuery: string;
   /** Ordered Pexels-only alternatives when a business-name query is too specific. */
@@ -65,4 +66,6 @@ export interface ImageSourcingRequest {
   lead: Lead;
   style: VisualStyle;
   sections?: ImageSection[] | undefined;
+  /** Server-derived creative search briefs from the validated generated configuration. */
+  briefs?: Partial<Record<ImageSection, string>> | undefined;
 }

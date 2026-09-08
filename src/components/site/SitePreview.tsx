@@ -114,7 +114,8 @@ export function SitePreview({
     if (!isOptionUnlocked(nextTier, "color-theme", themeId)) selectTheme("original");
   }
 
-  const useVisualDirectionLayout = showDemoLaunchControls || showVisualDirectionLayout;
+  const useVisualDirectionLayout =
+    showDemoLaunchControls || showVisualDirectionLayout || Boolean(config.design?.blueprint);
   const themeStyle = useVisualDirectionLayout
     ? ({
         ...selectedTheme.variables,

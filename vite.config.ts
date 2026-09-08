@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
   for (const name of [
     "OPENAI_API_KEY",
     "OPENAI_MODEL",
+    "OPENAI_SITE_MODEL",
     "PEXELS_API_KEY",
     "SUPABASE_URL",
     "SUPABASE_PUBLISHABLE_KEY",

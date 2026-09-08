@@ -55,11 +55,13 @@ export function Testimonials({
                   ★★★★★
                 </div>
                 <blockquote
-                  className={`mt-5 text-base leading-relaxed ${modern ? "text-bone/80" : "text-ink/80"}`}
+                  className={`mt-5 text-base leading-relaxed ${modern ? "text-bone/92" : "text-ink/80"}`}
                 >
                   “{t.quote}”
                 </blockquote>
-                <figcaption className={`mt-6 text-xs ${modern ? "text-bone/50" : "text-ink/50"}`}>
+                <figcaption
+                  className={`mt-6 text-xs ${modern ? "text-bone/72" : luxury ? "text-ink/68" : "text-ink/50"}`}
+                >
                   {t.author} · {t.place}
                 </figcaption>
               </figure>

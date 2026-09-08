@@ -279,6 +279,13 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
       const assets = Object.fromEntries(
         result.assets.filter((asset) => asset.src).map((asset) => [asset.section, asset]),
       );
+      const gallery = ["showcase-1", "showcase-2", "showcase-3"].map((section, index) => {
+        const image = assets[section];
+        const current = config.assets.gallery?.[index];
+        return image?.src
+          ? { src: image.src, alt: image.alt, brief: current?.brief }
+          : (current ?? { alt: `${config.brand.name} featured work ${index + 1}` });
+      });
       setPreviewConfig(
         validateSiteConfig({
           ...config,
@@ -287,11 +294,12 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
             : config.seo,
           assets: {
             hero: assets["hero"]?.src
-              ? { src: assets["hero"].src, alt: assets["hero"].alt }
-              : { alt: config.assets.hero.alt },
+              ? { ...config.assets.hero, src: assets["hero"].src, alt: assets["hero"].alt }
+              : config.assets.hero,
             about: assets["about"]?.src
-              ? { src: assets["about"].src, alt: assets["about"].alt }
-              : { alt: config.assets.about.alt },
+              ? { ...config.assets.about, src: assets["about"].src, alt: assets["about"].alt }
+              : config.assets.about,
+            gallery,
           },
           assetAttributions: result.assets
             .filter((asset) => asset.sourceType === "pexels" && asset.originalSourceUrl)
@@ -305,7 +313,7 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
       );
       const succeeded = result.assets.filter((asset) => asset.src).length;
       setMessage(
-        succeeded === result.assets.length
+        succeeded === result.requirements.length
           ? `Generated AI content and selected ${succeeded} Pexels images.`
           : `Generated AI content. ${succeeded} Pexels images are ready; remaining sections use the image-free design treatment.`,
       );
@@ -590,7 +598,7 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
                 ))}
               </select>
               <span className="mt-1 block font-normal text-ink/55">
-                Used only when generating new images; it does not change the website template.
+                Preview the same content through a different adaptive art direction.
               </span>
             </label>
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
@@ -641,7 +649,7 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
           <div className="mx-auto max-w-6xl px-6 py-8 sm:px-10">
             <p className="text-sm font-semibold tracking-wide text-clay">Generated preview</p>
             <p className="mt-1 text-sm text-ink/65">
-              Draft only — demo testimonials must be replaced with verified customer reviews before
+              Draft only — verify business claims and replace any sample experience copy before
               publishing.
             </p>
             <button
@@ -653,7 +661,13 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
               {isSavingDraft ? "Saving draft…" : "Save private website draft"}
             </button>
           </div>
-          <SitePreview config={previewConfig} />
+          <SitePreview
+            config={{
+              ...previewConfig,
+              design: { ...previewConfig.design, visualDirection: visualStyle },
+            }}
+            showVisualDirectionLayout
+          />
         </section>
       )}
     </div>

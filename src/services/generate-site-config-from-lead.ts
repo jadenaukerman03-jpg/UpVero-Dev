@@ -1,5 +1,5 @@
 import type { Lead } from "@/data/leads";
-import { validateSiteConfig, type SiteConfig } from "@/data/site";
+import { validateSiteConfig, type CreativeBlueprint, type SiteConfig } from "@/data/site";
 
 const DEFAULT_INDUSTRY = "independent business";
 const DEFAULT_SERVICES = [
@@ -51,7 +51,7 @@ function serviceAreaFor(lead: Lead): string {
   const suppliedAreas = lead.serviceAreas?.map((area) => area.trim()).filter(Boolean) ?? [];
   if (suppliedAreas.length > 0) return suppliedAreas.join(", ");
   const location = [lead.city?.trim(), lead.state?.trim()].filter(Boolean).join(", ");
-  return location || "your area";
+  return location;
 }
 
 const STANDARD_EXPERIENCE_ITEMS = [
@@ -98,8 +98,9 @@ function createFaq(industry: string, services: string[], serviceArea: string) {
     },
     {
       question: "Which areas do you serve?",
-      answer:
-        `We serve ${serviceArea} and can confirm availability for your plans before scheduling.`,
+      answer: serviceArea
+        ? `We serve ${serviceArea} and can confirm availability for your plans before scheduling.`
+        : "Share your location when you reach out and we will confirm service availability before scheduling.",
     },
     {
       question: "What should I expect after I reach out?",
@@ -107,6 +108,87 @@ function createFaq(industry: string, services: string[], serviceArea: string) {
         "You will receive a response within one business day so we can learn about the project and help you plan.",
     },
   ];
+}
+
+function createFallbackBlueprint(
+  industry: string,
+  description: string,
+): {
+  visualDirection: NonNullable<SiteConfig["design"]>["visualDirection"];
+  blueprint: CreativeBlueprint;
+} {
+  const context = `${industry} ${description}`.toLowerCase();
+  const visualDirection = /(law|legal|attorney|accounting|financial|medical|dental)/.test(context)
+    ? "professional"
+    : /(bakery|restaurant|cafe|child|pet|garden|wellness|beauty)/.test(context)
+      ? "friendly"
+      : /(luxury|boutique|jewelry|real estate|interior|fashion|spa)/.test(context)
+        ? "luxury"
+        : /(technology|software|automotive|auto repair|mechanic|vehicle|aviation|flight|studio|architecture)/.test(
+              context,
+            )
+          ? "modern"
+          : /(design|photography|artist|creative)/.test(context)
+            ? "minimal"
+            : "professional";
+  const presets: Record<NonNullable<SiteConfig["design"]>["visualDirection"], CreativeBlueprint> = {
+    professional: {
+      authoredFor: "professional",
+      archetype: "precision",
+      heroLayout: "split",
+      serviceLayout: "bento",
+      density: "balanced",
+      motion: "subtle",
+      surfaceStyle: "outlined",
+      imageTreatment: "natural",
+      sectionOrder: ["services", "showcase", "about", "process", "experience", "faq", "contact"],
+    },
+    modern: {
+      authoredFor: "modern",
+      archetype: "immersive",
+      heroLayout: "showcase",
+      serviceLayout: "bento",
+      density: "compact",
+      motion: "expressive",
+      surfaceStyle: "glass",
+      imageTreatment: "vivid",
+      sectionOrder: ["showcase", "services", "process", "about", "experience", "faq", "contact"],
+    },
+    luxury: {
+      authoredFor: "luxury",
+      archetype: "editorial",
+      heroLayout: "full-bleed",
+      serviceLayout: "list",
+      density: "cinematic",
+      motion: "cinematic",
+      surfaceStyle: "paper",
+      imageTreatment: "editorial",
+      sectionOrder: ["about", "showcase", "services", "experience", "process", "faq", "contact"],
+    },
+    friendly: {
+      authoredFor: "friendly",
+      archetype: "playful",
+      heroLayout: "stacked",
+      serviceLayout: "cards",
+      density: "balanced",
+      motion: "expressive",
+      surfaceStyle: "soft",
+      imageTreatment: "warm",
+      sectionOrder: ["services", "experience", "showcase", "about", "process", "faq", "contact"],
+    },
+    minimal: {
+      authoredFor: "minimal",
+      archetype: "minimal",
+      heroLayout: "editorial",
+      serviceLayout: "list",
+      density: "compact",
+      motion: "subtle",
+      surfaceStyle: "outlined",
+      imageTreatment: "monochrome",
+      sectionOrder: ["services", "about", "process", "showcase", "experience", "faq", "contact"],
+    },
+  };
+  return { visualDirection, blueprint: presets[visualDirection] };
 }
 
 /**
@@ -120,14 +202,18 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
   const concept = getCopyConcept(industry);
   const services = list(lead.services, concept.fallbackServices ?? DEFAULT_SERVICES);
   const serviceArea = serviceAreaFor(lead);
+  const serviceAreaDisplay = serviceArea || "Service area available on request";
   const cityAndState = [lead.city, lead.state].filter(Boolean).join(", ");
-  const address = text(lead.address, cityAndState || `Serving ${serviceArea}`);
+  const address = text(lead.address, cityAndState || "Address available on request");
   const phone = text(lead.phone, "Call for availability");
   const email = text(lead.email, "Contact us for details");
   const description = text(
     lead.businessDescription,
-    `${name} provides dependable ${industry} for customers throughout ${serviceArea}.`,
+    serviceArea
+      ? `${name} provides dependable ${industry} for customers throughout ${serviceArea}.`
+      : `${name} provides thoughtful ${industry} with clear information and an easy next step.`,
   );
+  const fallbackDesign = createFallbackBlueprint(industry, description);
   const shortIndustry = serviceType.toLowerCase();
   const slug = slugify(name);
   const yearsMetric = lead.yearsInBusiness
@@ -138,26 +224,47 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
     : { value: "Clear", label: "Next steps" };
 
   return validateSiteConfig({
+    design: fallbackDesign,
     brand: {
       name,
       shortName: abbreviate(name),
-      tagline: `${serviceType} · Serving ${serviceArea}`,
+      tagline: serviceArea
+        ? `${serviceType} · Serving ${serviceArea}`
+        : `${serviceType} · Thoughtful service, clearly explained`,
       license: text(lead.licenseNumber, "License information available on request"),
       phone,
       email,
       address,
-      serviceArea,
+      serviceArea: serviceAreaDisplay,
     },
     seo: {
-      title: `${name} — ${serviceType} in ${serviceArea}`,
-      description: `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`,
-      socialTitle: `${name} — ${serviceType} in ${serviceArea}`,
-      socialDescription: `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`,
+      title: serviceArea
+        ? `${name} — ${serviceType} in ${serviceArea}`
+        : `${name} — ${serviceType}`,
+      description: serviceArea
+        ? `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`
+        : `${description} Contact ${name} to learn more.`,
+      socialTitle: serviceArea
+        ? `${name} — ${serviceType} in ${serviceArea}`
+        : `${name} — ${serviceType}`,
+      socialDescription: serviceArea
+        ? `${description} Contact ${name} for ${shortIndustry} in ${serviceArea}.`
+        : `${description} Contact ${name} to learn more.`,
       canonicalUrl: `https://${slug}.example/`,
     },
     assets: {
-      hero: { alt: `${name} ${industry} project` },
-      about: { alt: `${name} professional business environment` },
+      hero: {
+        alt: `${name} ${industry} environment`,
+        brief: `${industry} hero image focused on ${services.slice(0, 2).join(" and ")}`,
+      },
+      about: {
+        alt: `${name} professional business environment`,
+        brief: `${industry} workspace, materials, tools, products, or finished result`,
+      },
+      gallery: services.slice(0, 3).map((service) => ({
+        alt: `${name} ${service}`,
+        brief: `${industry} ${service} detail or finished result`,
+      })),
     },
     navigation: [
       { label: "Services", href: "#services" },
@@ -167,12 +274,18 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
     ],
     header: { primaryCta: { label: "Request information", href: "#contact" } },
     hero: {
-      eyebrow: `${serviceType} · Serving ${serviceArea}`,
+      eyebrow: serviceArea ? `${serviceType} · Serving ${serviceArea}` : serviceType,
       headline: concept.headline,
       description,
       primaryCta: { label: "Request a consultation", href: "#contact" },
       secondaryCta: { label: "Explore services", href: "#services" },
-      metrics: [yearsMetric, ratingMetric, { value: "Serving", label: serviceArea }],
+      metrics: [
+        yearsMetric,
+        ratingMetric,
+        serviceArea
+          ? { value: "Serving", label: serviceArea }
+          : { value: "Simple", label: "Ways to get started" },
+      ],
     },
     services: {
       eyebrow: "What we offer",
@@ -190,8 +303,40 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
       points: [
         "A clear conversation before work begins",
         "Practical recommendations based on your needs",
-        `Service across ${serviceArea}`,
+        serviceArea ? `Service across ${serviceArea}` : "Availability confirmed before scheduling",
       ],
+    },
+    story: {
+      value: {
+        eyebrow: "Designed around the outcome",
+        heading: concept.aboutHeading,
+        body: description,
+      },
+      process: {
+        eyebrow: "A clear path forward",
+        heading: "A thoughtful experience from first question to next step",
+        items: services.slice(0, 3).map((service, index) => ({
+          title: index === 0 ? "Start with your goal" : service,
+          body:
+            index === 0
+              ? `Tell us what you are working toward and we will help identify the right ${industry.toLowerCase()} next step.`
+              : `Explore ${service.toLowerCase()} with clear information shaped around your needs.`,
+        })),
+      },
+      showcase: {
+        eyebrow: "A closer look",
+        heading: `What ${name} can help you move forward`,
+        body: description,
+        items: services.slice(0, 3).map((service) => ({
+          title: service,
+          body: `A focused ${service.toLowerCase()} option built around a clear, useful outcome.`,
+        })),
+      },
+      closingCta: {
+        eyebrow: "Begin here",
+        heading: concept.contactHeading,
+        body: `Share what you have in mind and ${name} will help you understand the next step.`,
+      },
     },
     reviews: {
       eyebrow: "What to expect",
@@ -210,7 +355,7 @@ export function generateSiteConfigFromLead(lead: Lead): SiteConfig {
       details: [
         { label: "Phone", value: phone },
         { label: "Email", value: email },
-        { label: "Area", value: serviceArea },
+        { label: "Area", value: serviceAreaDisplay },
         { label: "Office", value: address },
       ],
       serviceOptions: services,

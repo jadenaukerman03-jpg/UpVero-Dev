@@ -7,10 +7,35 @@ export type NavigationItem = { label: string; href: string };
 
 export type SiteConfigKey = "vantageRoofing" | "summitPeakRoofing";
 
+export const generatedSectionIds = [
+  "services",
+  "showcase",
+  "about",
+  "process",
+  "experience",
+  "faq",
+  "contact",
+] as const;
+
+export type GeneratedSectionId = (typeof generatedSectionIds)[number];
+
+export type CreativeBlueprint = {
+  authoredFor: "professional" | "modern" | "luxury" | "friendly" | "minimal";
+  archetype: "editorial" | "immersive" | "precision" | "playful" | "heritage" | "minimal";
+  heroLayout: "split" | "full-bleed" | "editorial" | "showcase" | "stacked";
+  serviceLayout: "bento" | "cards" | "list" | "steps";
+  density: "compact" | "balanced" | "cinematic";
+  motion: "subtle" | "expressive" | "cinematic";
+  surfaceStyle: "solid" | "outlined" | "soft" | "glass" | "paper";
+  imageTreatment: "natural" | "editorial" | "warm" | "vivid" | "monochrome";
+  sectionOrder: GeneratedSectionId[];
+};
+
 export type SiteConfig = {
   design?: {
     visualDirection: "professional" | "modern" | "luxury" | "friendly" | "minimal";
     primaryColor?: string;
+    blueprint?: CreativeBlueprint;
   };
   brand: {
     name: string;
@@ -31,8 +56,9 @@ export type SiteConfig = {
     socialImage?: string;
   };
   assets: {
-    hero: { src?: string; alt: string };
-    about: { src?: string; alt: string };
+    hero: { src?: string; alt: string; brief?: string };
+    about: { src?: string; alt: string; brief?: string };
+    gallery?: Array<{ src?: string; alt: string; brief?: string }>;
   };
   /** Present only when a selected licensed asset requires a public attribution link. */
   assetAttributions?: Array<{ label: string; href: string }>;
@@ -52,6 +78,21 @@ export type SiteConfig = {
     items: Array<{ number: string; title: string; body: string }>;
   };
   about: { eyebrow: string; heading: string; body: string; points: string[] };
+  story?: {
+    value: { eyebrow: string; heading: string; body: string };
+    process: {
+      eyebrow: string;
+      heading: string;
+      items: Array<{ title: string; body: string }>;
+    };
+    showcase: {
+      eyebrow: string;
+      heading: string;
+      body: string;
+      items: Array<{ title: string; body: string }>;
+    };
+    closingCta: { eyebrow: string; heading: string; body: string };
+  };
   reviews: {
     eyebrow: string;
     heading: string;
@@ -88,6 +129,25 @@ export type SiteConfig = {
 
 const ctaSchema = z.object({ label: z.string().min(1), href: safeLinkHrefSchema });
 
+const generatedSectionIdSchema = z.enum(generatedSectionIds);
+const creativeBlueprintSchema = z.object({
+  authoredFor: z.enum(["professional", "modern", "luxury", "friendly", "minimal"]),
+  archetype: z.enum(["editorial", "immersive", "precision", "playful", "heritage", "minimal"]),
+  heroLayout: z.enum(["split", "full-bleed", "editorial", "showcase", "stacked"]),
+  serviceLayout: z.enum(["bento", "cards", "list", "steps"]),
+  density: z.enum(["compact", "balanced", "cinematic"]),
+  motion: z.enum(["subtle", "expressive", "cinematic"]),
+  surfaceStyle: z.enum(["solid", "outlined", "soft", "glass", "paper"]),
+  imageTreatment: z.enum(["natural", "editorial", "warm", "vivid", "monochrome"]),
+  sectionOrder: z.array(generatedSectionIdSchema).min(4).max(generatedSectionIds.length),
+});
+
+const siteAssetSchema = z.object({
+  src: safeHttpsUrlSchema.optional(),
+  alt: z.string().min(1),
+  brief: z.string().min(1).max(500).optional(),
+});
+
 /** Runtime validation for generated or eventually AI-provided site configurations. */
 export const siteConfigSchema = z.object({
   design: z
@@ -97,6 +157,7 @@ export const siteConfigSchema = z.object({
         .string()
         .regex(/^#[0-9a-fA-F]{6}$/)
         .optional(),
+      blueprint: creativeBlueprintSchema.optional(),
     })
     .optional(),
   brand: z.object({
@@ -118,8 +179,9 @@ export const siteConfigSchema = z.object({
     socialImage: safeHttpsUrlSchema.optional(),
   }),
   assets: z.object({
-    hero: z.object({ src: safeHttpsUrlSchema.optional(), alt: z.string().min(1) }),
-    about: z.object({ src: safeHttpsUrlSchema.optional(), alt: z.string().min(1) }),
+    hero: siteAssetSchema,
+    about: siteAssetSchema,
+    gallery: z.array(siteAssetSchema).max(4).optional(),
   }),
   assetAttributions: z
     .array(z.object({ label: z.string().min(1), href: safeHttpsUrlSchema }))
@@ -147,6 +209,37 @@ export const siteConfigSchema = z.object({
     body: z.string().min(1),
     points: z.array(z.string().min(1)),
   }),
+  story: z
+    .object({
+      value: z.object({
+        eyebrow: z.string(),
+        heading: z.string().min(1),
+        body: z.string().min(1),
+      }),
+      process: z.object({
+        eyebrow: z.string(),
+        heading: z.string().min(1),
+        items: z
+          .array(z.object({ title: z.string().min(1), body: z.string().min(1) }))
+          .min(2)
+          .max(5),
+      }),
+      showcase: z.object({
+        eyebrow: z.string(),
+        heading: z.string().min(1),
+        body: z.string().min(1),
+        items: z
+          .array(z.object({ title: z.string().min(1), body: z.string().min(1) }))
+          .min(2)
+          .max(4),
+      }),
+      closingCta: z.object({
+        eyebrow: z.string(),
+        heading: z.string().min(1),
+        body: z.string().min(1),
+      }),
+    })
+    .optional(),
   reviews: z.object({
     eyebrow: z.string(),
     heading: z.string().min(1),

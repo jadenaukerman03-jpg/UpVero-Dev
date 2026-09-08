@@ -27,6 +27,7 @@ export function Contact({
   const luxury = visualDirection === "luxury";
   const friendly = visualDirection === "friendly";
   const minimal = visualDirection === "minimal";
+  const highContrastDark = modern || luxury;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -73,7 +74,7 @@ export function Contact({
               {contact.heading}
             </h2>
             <p
-              className={`mt-5 max-w-[44ch] leading-relaxed ${minimal ? "text-ink/65" : friendly ? "text-bone/85" : "text-bone/65"}`}
+              className={`mt-5 max-w-[44ch] leading-relaxed ${minimal ? "text-ink/72" : friendly ? "text-bone/90" : highContrastDark ? "text-bone/88" : "text-bone/72"}`}
             >
               {contact.body}
             </p>
@@ -83,7 +84,9 @@ export function Contact({
                   key={d.label}
                   className={`flex gap-3 border-b pb-4 ${minimal ? "border-ink/10" : "border-bone/10"}`}
                 >
-                  <dt className={`w-20 shrink-0 ${minimal ? "text-ink/45" : "text-bone/50"}`}>
+                  <dt
+                    className={`w-20 shrink-0 ${minimal ? "text-ink/55" : highContrastDark ? "text-bone/72" : "text-bone/60"}`}
+                  >
                     {d.label}
                   </dt>
                   <dd className={minimal ? "text-ink/80" : "text-bone/85"}>{d.value}</dd>

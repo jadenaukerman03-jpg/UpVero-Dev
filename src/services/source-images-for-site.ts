@@ -3,20 +3,19 @@ import { z } from "zod";
 
 import { leadSchema } from "@/data/leads";
 import { siteConfigSchema } from "@/data/site";
+import { imageSections, type ImageSection } from "@/data/visuals";
 const sourcingRequestSchema = z.object({
   accessToken: z.string().max(4096).optional(),
   businessId: z.string().uuid(),
   websiteId: z.string().uuid().optional(),
   lead: leadSchema,
   style: z.enum(["professional", "modern", "luxury", "friendly", "minimal"]),
-  sections: z
-    .array(z.enum(["hero", "about"]))
-    .min(1)
-    .max(2)
-    .optional(),
+  sections: z.array(z.enum(imageSections)).min(1).max(imageSections.length).optional(),
 });
 
-const ownedDraftSourcingRequestSchema = sourcingRequestSchema.extend({ websiteId: z.string().uuid() });
+const ownedDraftSourcingRequestSchema = sourcingRequestSchema.extend({
+  websiteId: z.string().uuid(),
+});
 
 async function validateRequest(data: unknown) {
   const parsed = sourcingRequestSchema.safeParse(data);
@@ -51,9 +50,9 @@ export const sourceOwnedDraftImages = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { authorizeProviderOperation } =
       await import("./provider-operation-authorization.server");
-    const { client, user } = await authorizeProviderOperation(data, { operation: "image_sourcing" });
-    const { sourceImagesForSite } = await import("./source-images-for-site.server");
-    const result = await sourceImagesForSite(data);
+    const { client, user } = await authorizeProviderOperation(data, {
+      operation: "image_sourcing",
+    });
     const { data: website, error: websiteError } = await client
       .from("websites")
       .select("site_config")
@@ -64,9 +63,30 @@ export const sourceOwnedDraftImages = createServerFn({ method: "POST" })
     if (websiteError || !website) throw new Error("This website draft is unavailable.");
     const currentConfig = siteConfigSchema.safeParse(website.site_config);
     if (!currentConfig.success) throw new Error("This website draft has an invalid configuration.");
+    const galleryBriefs = currentConfig.data.assets.gallery ?? [];
+    const briefs: Partial<Record<ImageSection, string>> = {
+      hero: currentConfig.data.assets.hero.brief ?? currentConfig.data.assets.hero.alt,
+      about: currentConfig.data.assets.about.brief ?? currentConfig.data.assets.about.alt,
+    };
+    (["showcase-1", "showcase-2", "showcase-3"] as const).forEach((section, index) => {
+      const brief = galleryBriefs[index]?.brief ?? galleryBriefs[index]?.alt;
+      if (brief) briefs[section] = brief;
+    });
+    const { sourceImagesForSite } = await import("./source-images-for-site.server");
+    const result = await sourceImagesForSite({
+      ...data,
+      briefs,
+    });
     const images = Object.fromEntries(
       result.assets.filter((asset) => asset.src).map((asset) => [asset.section, asset]),
     );
+    const gallery = ["showcase-1", "showcase-2", "showcase-3"].map((section, index) => {
+      const image = images[section];
+      const current = currentConfig.data.assets.gallery?.[index];
+      return image?.src
+        ? { src: image.src, alt: image.alt, brief: current?.brief }
+        : (current ?? { alt: `${currentConfig.data.brand.name} featured work ${index + 1}` });
+    });
     const nextConfig = siteConfigSchema.parse({
       ...currentConfig.data,
       seo: images["hero"]?.src
@@ -74,11 +94,20 @@ export const sourceOwnedDraftImages = createServerFn({ method: "POST" })
         : currentConfig.data.seo,
       assets: {
         hero: images["hero"]?.src
-          ? { src: images["hero"].src, alt: images["hero"].alt }
+          ? {
+              ...currentConfig.data.assets.hero,
+              src: images["hero"].src,
+              alt: images["hero"].alt,
+            }
           : currentConfig.data.assets.hero,
         about: images["about"]?.src
-          ? { src: images["about"].src, alt: images["about"].alt }
+          ? {
+              ...currentConfig.data.assets.about,
+              src: images["about"].src,
+              alt: images["about"].alt,
+            }
           : currentConfig.data.assets.about,
+        gallery,
       },
       assetAttributions: result.assets
         .filter((asset) => asset.sourceType === "pexels" && asset.originalSourceUrl)

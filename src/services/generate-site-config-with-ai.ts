@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { leadSchema } from "@/data/leads";
+import { siteConfigSchema } from "@/data/site";
 
 const requestSchema = z.object({
   accessToken: z.string().max(4096).optional(),
@@ -50,8 +51,26 @@ export const generateOwnedDraftSiteConfigWithAI = createServerFn({ method: "POST
     const { authorizeProviderOperation } =
       await import("./provider-operation-authorization.server");
     const { client, user } = await authorizeProviderOperation(data, { operation: "ai_generation" });
+    const { data: existingWebsite, error: existingError } = await client
+      .from("websites")
+      .select("site_config")
+      .eq("id", data.websiteId)
+      .eq("business_id", data.businessId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    if (existingError || !existingWebsite) throw new Error("This website draft is unavailable.");
+    const existingConfig = siteConfigSchema.safeParse(existingWebsite.site_config);
     const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
-    const config = await createAiSiteConfig(data.lead);
+    const generatedConfig = await createAiSiteConfig(data.lead);
+    const primaryColor = existingConfig.success
+      ? existingConfig.data.design?.primaryColor
+      : undefined;
+    const config = primaryColor
+      ? {
+          ...generatedConfig,
+          design: { ...generatedConfig.design, primaryColor },
+        }
+      : generatedConfig;
     const { data: website, error } = await client
       .from("websites")
       .update({ site_config: config })

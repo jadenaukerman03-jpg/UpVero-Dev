@@ -43,12 +43,17 @@ export function buildImagePrompt(profile: VisualProfile, section: ImageSection):
     return `${sharedConstraints(profile)} Compose a wide, premium website hero image with a strong environmental view of a finished project, storefront, interior, equipment, products, vehicles, materials, architecture, or other relevant business setting. Leave calm negative space around the central composition for the website crop. Use natural lighting and an intentional depth of field. The image must feel distinct from the about-section environment.`;
   }
 
-  return `${sharedConstraints(profile)} Compose a vertical, premium about-section environmental photograph of a visually interesting workspace, finished project detail, professional interior, equipment arrangement, materials, product display, vehicle, landscape, or architectural feature. Use close environmental storytelling, layered depth, natural lighting, and tactile detail. The image must feel distinct from the hero image and must contain zero people.`;
+  if (section === "about") {
+    return `${sharedConstraints(profile)} Compose a vertical, premium about-section environmental photograph of a visually interesting workspace, finished project detail, professional interior, equipment arrangement, materials, product display, vehicle, landscape, or architectural feature. Use close environmental storytelling, layered depth, natural lighting, and tactile detail. The image must feel distinct from the hero image and must contain zero people.`;
+  }
+
+  return `${sharedConstraints(profile)} Compose a landscape editorial detail for showcase position ${section.slice(-1)}. Focus on one distinctive product, finished result, tool, material, architectural detail, environment, or piece of equipment that communicates the business without people. Make this composition clearly different from the hero and other showcase images.`;
 }
 
 export function imageAlt(profile: VisualProfile, section: ImageSection): string {
   const location = profile.location ? ` in ${profile.location}` : "";
-  return section === "hero"
-    ? `${profile.businessName} ${profile.industry} work${location}`
-    : `${profile.businessName} professional business environment${location}`;
+  if (section === "hero") return `${profile.businessName} ${profile.industry} work${location}`;
+  if (section === "about")
+    return `${profile.businessName} professional business environment${location}`;
+  return `${profile.businessName} ${profile.industry} featured detail${location}`;
 }

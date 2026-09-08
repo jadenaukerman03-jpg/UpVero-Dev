@@ -77,7 +77,7 @@ export function Faq({ visualDirection }: { visualDirection?: DemoVisualDirection
                   >
                     <div className="overflow-hidden">
                       <p
-                        className={`pb-5 text-sm leading-relaxed ${modern ? "text-bone/65" : "text-ink/65"}`}
+                        className={`pb-5 text-sm leading-relaxed ${modern ? "text-bone/82" : "text-ink/72"}`}
                       >
                         {item.answer}
                       </p>
