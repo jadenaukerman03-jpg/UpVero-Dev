@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { safeHttpsUrlSchema, safeLinkHrefSchema } from "@/lib/safe-url";
 import { generationQualityModes, type GenerationQualityMode } from "./site-generation";
+import {
+  demoPresentationOverridesSchema,
+  generativeSiteBundleSchema,
+  type DemoPresentationOverrides,
+  type GenerativeSiteBundle,
+} from "./generative-site";
 
 export type Cta = { label: string; href: string };
 
@@ -79,6 +85,14 @@ export type SiteConfig = {
     paletteId?: GeneratedPaletteId;
     blueprint?: CreativeBlueprint;
   };
+  /**
+   * Versioned, AI-authored page documents. New generations render these
+   * compositions; the legacy fields below remain the compatibility snapshot
+   * used by publishing, contact capture, and older saved websites.
+   */
+  generatedExperience?: GenerativeSiteBundle;
+  /** Safe presentation choices made inside a private preview. */
+  presentationOverrides?: DemoPresentationOverrides;
   brand: {
     name: string;
     shortName: string;
@@ -223,6 +237,8 @@ export const siteConfigSchema = z.object({
       blueprint: creativeBlueprintSchema.optional(),
     })
     .optional(),
+  generatedExperience: generativeSiteBundleSchema.optional(),
+  presentationOverrides: demoPresentationOverridesSchema.optional(),
   brand: z.object({
     name: z.string().min(1),
     shortName: z.string().min(1),

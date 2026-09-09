@@ -4,6 +4,7 @@ import {
   FileSpreadsheet,
   LoaderCircle,
   Mail,
+  RefreshCw,
   Search,
   Send,
   Smartphone,
@@ -29,6 +30,7 @@ import {
   prepareProspectOutreachDraft,
   processQueuedRegistryResearch,
   processNextProspectDemo,
+  refreshProspectDemoImages,
   markProspectSmsDoNotContact,
   recordProspectSmsConsent,
   recordProspectSmsCopy,
@@ -598,6 +600,26 @@ function SmsDraftEditor({ candidate, registryId }: { candidate: Candidate; regis
     }
   }
 
+  async function openTextMessage() {
+    if (!draft?.recipient_phone || draft.consent_status !== "opted_in") return;
+    try {
+      const accessToken = await getSessionAccessToken();
+      await recordCopy({
+        data: { accessToken, registryId, candidateId: candidate.id, draftId: draft.id },
+      });
+      const iphone = /iPad|iPhone|iPod/i.test(window.navigator.userAgent);
+      const separator = iphone ? "&" : "?";
+      window.location.assign(
+        `sms:${encodeURIComponent(draft.recipient_phone)}${separator}body=${encodeURIComponent(draft.body)}`,
+      );
+      setNotice(
+        "Your messages app was opened with the private demo text. Review it before sending.",
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to open your messages app.");
+    }
+  }
+
   async function recordOptIn() {
     if (!draft) return;
     const consentSource = window
@@ -684,8 +706,8 @@ function SmsDraftEditor({ candidate, registryId }: { candidate: Candidate; regis
   return (
     <section className="uv-admin-outreach-draft">
       <p>
-        <strong>Manual SMS draft</strong> — review and copy this text yourself; Upvero will never
-        send it.
+        <strong>Personal demo text</strong> — Upvero prepares the message, then your device opens it
+        for your final review and approval before sending.
       </p>
       <label>
         Recipient phone (optional)
@@ -738,15 +760,27 @@ function SmsDraftEditor({ candidate, registryId }: { candidate: Candidate; regis
         <button
           type="button"
           className="uv-button uv-button-ghost"
-          disabled={!draft.recipient_phone || working}
+          disabled={!draft.recipient_phone || working || draft.consent_status !== "opted_in"}
           onClick={() => void copy()}
         >
           <Clipboard size={15} /> Copy text
+        </button>
+        <button
+          type="button"
+          className="uv-button uv-button-primary"
+          disabled={!draft.recipient_phone || working || draft.consent_status !== "opted_in"}
+          onClick={() => void openTextMessage()}
+        >
+          <Send size={15} /> Text this demo
         </button>
       </div>
       {!draft.recipient_phone ? (
         <p className="uv-admin-inline-notice">
           Add a phone number before copying so Upvero can honor a future do-not-contact request.
+        </p>
+      ) : draft.consent_status !== "opted_in" ? (
+        <p className="uv-admin-inline-notice">
+          Record the recipient's explicit opt-in before copying or opening the message for delivery.
         </p>
       ) : null}
       <div className="uv-admin-outreach-tracking">
@@ -886,6 +920,7 @@ export function RegistryPipeline() {
   const queueAction = useServerFn(queueCandidateAction);
   const runResearch = useServerFn(processQueuedRegistryResearch);
   const generateNextDemo = useServerFn(processNextProspectDemo);
+  const refreshDemoImages = useServerFn(refreshProspectDemoImages);
 
   async function token() {
     const { data } = await createBrowserSupabaseClient().auth.getSession();
@@ -1051,6 +1086,25 @@ export function RegistryPipeline() {
       setProgress(
         error instanceof Error ? error.message : "Demo generation failed. You can retry it safely.",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function repairDemoImages(candidateId: string) {
+    if (!registryId || busy) return;
+    setBusy(true);
+    try {
+      const accessToken = await token();
+      const result = await refreshDemoImages({
+        data: { accessToken, registryId, candidateId },
+      });
+      setProgress(
+        `Replaced ${result.refreshed} image areas with business-relevant Pexels photography.`,
+      );
+      await refreshPipeline(registryId, accessToken);
+    } catch (error) {
+      setProgress(error instanceof Error ? error.message : "Unable to refresh demo images.");
     } finally {
       setBusy(false);
     }
@@ -1309,6 +1363,14 @@ export function RegistryPipeline() {
                           >
                             Open private preview <ExternalLink size={14} />
                           </a>
+                          <button
+                            type="button"
+                            className="uv-admin-demo-link"
+                            disabled={busy}
+                            onClick={() => void repairDemoImages(candidate.id)}
+                          >
+                            <RefreshCw size={14} /> Refresh Pexels images
+                          </button>
                         </p>
                         <OutreachDraftEditor candidate={candidate} registryId={registryId} />
                         <SmsDraftEditor candidate={candidate} registryId={registryId} />

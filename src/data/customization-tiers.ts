@@ -65,7 +65,7 @@ export const fontOptions: FontOption[] = [
   {
     id: "original",
     label: "Recommended",
-    description: "Fraunces headings with Archivo body copy",
+    description: "AI-selected typography matched to the generated art direction",
     variables: {
       "--preview-font-display": '"Fraunces", ui-serif, Georgia, serif',
       "--preview-font-sans": '"Archivo", ui-sans-serif, system-ui, sans-serif',

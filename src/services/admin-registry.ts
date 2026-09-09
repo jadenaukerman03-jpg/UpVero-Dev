@@ -5,6 +5,7 @@ import { createLead } from "@/data/leads";
 import type { BusinessResearchProfile } from "@/data/research";
 import { siteConfigSchema, validateSiteConfig, type SiteConfig } from "@/data/site";
 import { generationQualityModes } from "@/data/site-generation";
+import type { ImageSelectionResult } from "@/data/visuals";
 import { normalizeResearchProfile } from "@/services/business-research";
 
 const cellSchema = z.string().trim().max(2_000);
@@ -15,6 +16,47 @@ const mappingSchema = z
   .record(z.string().max(80), z.string().max(160))
   .refine((mapping) => Object.keys(mapping).length <= 20, "Too many mapped columns.");
 const accessSchema = z.object({ accessToken: z.string().min(1).max(8_192) });
+
+function applyPexelsImages(config: SiteConfig, imageResult: ImageSelectionResult) {
+  const selectedImages = Object.fromEntries(
+    imageResult.assets.map((asset) => [asset.section, asset]),
+  );
+  return validateSiteConfig({
+    ...config,
+    seo: selectedImages["hero"]?.src
+      ? { ...config.seo, socialImage: selectedImages["hero"].src }
+      : config.seo,
+    assets: {
+      hero: selectedImages["hero"]?.src
+        ? {
+            ...config.assets.hero,
+            src: selectedImages["hero"].src,
+            alt: selectedImages["hero"].alt,
+          }
+        : config.assets.hero,
+      about: selectedImages["about"]?.src
+        ? {
+            ...config.assets.about,
+            src: selectedImages["about"].src,
+            alt: selectedImages["about"].alt,
+          }
+        : config.assets.about,
+      gallery: ["showcase-1", "showcase-2", "showcase-3"].map((section, index) => {
+        const selected = selectedImages[section];
+        const current = config.assets.gallery?.[index];
+        return selected?.src
+          ? { ...current, src: selected.src, alt: selected.alt }
+          : (current ?? { alt: `${config.brand.name} featured work ${index + 1}` });
+      }),
+    },
+    assetAttributions: imageResult.assets
+      .filter((asset) => asset.originalSourceUrl)
+      .map((asset) => ({
+        label: asset.attribution ?? "Photo provided by Pexels",
+        href: asset.originalSourceUrl!,
+      })),
+  });
+}
 
 const canonicalFields = [
   "businessName",
@@ -634,44 +676,7 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
         style: config.design?.visualDirection ?? "professional",
         briefs,
       });
-      const selectedImages = Object.fromEntries(
-        imageResult.assets.map((asset) => [asset.section, asset]),
-      );
-      config = validateSiteConfig({
-        ...config,
-        seo: selectedImages["hero"]?.src
-          ? { ...config.seo, socialImage: selectedImages["hero"].src }
-          : config.seo,
-        assets: {
-          hero: selectedImages["hero"]?.src
-            ? {
-                ...config.assets.hero,
-                src: selectedImages["hero"].src,
-                alt: selectedImages["hero"].alt,
-              }
-            : config.assets.hero,
-          about: selectedImages["about"]?.src
-            ? {
-                ...config.assets.about,
-                src: selectedImages["about"].src,
-                alt: selectedImages["about"].alt,
-              }
-            : config.assets.about,
-          gallery: ["showcase-1", "showcase-2", "showcase-3"].map((section, index) => {
-            const selected = selectedImages[section];
-            const current = config.assets.gallery?.[index];
-            return selected?.src
-              ? { ...current, src: selected.src, alt: selected.alt }
-              : (current ?? { alt: `${config.brand.name} featured work ${index + 1}` });
-          }),
-        },
-        assetAttributions: imageResult.assets
-          .filter((asset) => asset.originalSourceUrl)
-          .map((asset) => ({
-            label: asset.attribution ?? "Photo provided by Pexels",
-            href: asset.originalSourceUrl!,
-          })),
-      });
+      config = applyPexelsImages(config, imageResult);
       const { data: demo, error: demoError } = await client
         .from("prospect_demos")
         .upsert(
@@ -738,6 +743,99 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
         .eq("id", job.id);
       throw error;
     }
+  });
+
+/** Repairs or replaces the Pexels photography for one administrator-owned prospect demo. */
+export const refreshProspectDemoImages = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    accessSchema
+      .extend({ registryId: z.string().uuid(), candidateId: z.string().uuid() })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { user } = await administrator(data.accessToken);
+    const { client, registry } = await verifyRegistryOwner(data.registryId, user.id);
+    const { data: candidate, error: candidateError } = await client
+      .from("registry_candidates")
+      .select(
+        "id, research_result, registry_businesses!inner(name, city, state, industry, website_url, registry_id)",
+      )
+      .eq("id", data.candidateId)
+      .eq("registry_businesses.registry_id", registry.id)
+      .maybeSingle();
+    if (candidateError || !candidate) respond(404, "This prospect is unavailable.");
+    const { data: demo, error: demoError } = await client
+      .from("prospect_demos")
+      .select("id, site_config")
+      .eq("registry_candidate_id", candidate.id)
+      .eq("created_by", user.id)
+      .eq("status", "ready")
+      .maybeSingle();
+    if (demoError || !demo) respond(404, "This private demo is unavailable.");
+    const currentConfig = siteConfigSchema.safeParse(demo.site_config);
+    if (!currentConfig.success) throw new Error("This private demo has an invalid configuration.");
+
+    const { data: dailyBudget, error: budgetError } = await client.rpc(
+      "consume_admin_provider_daily_budget",
+      { p_owner_id: user.id, p_operation: "image_sourcing", p_daily_limit: 100 },
+    );
+    if (budgetError || dailyBudget !== true)
+      respond(429, "Daily image-sourcing budget reached. Try again tomorrow.");
+    const { data: hourlyQuota, error: quotaError } = await client.rpc(
+      "consume_provider_operation_quota",
+      { p_owner_id: user.id, p_operation: "image_sourcing" },
+    );
+    if (quotaError || hourlyQuota !== true)
+      respond(429, "Image-sourcing quota reached. Try again later.");
+
+    const business = candidate.registry_businesses as unknown as {
+      name: string;
+      city: string | null;
+      state: string | null;
+      industry: string | null;
+      website_url: string | null;
+    };
+    const normalized = candidate.research_result
+      ? normalizeResearchProfile(
+          candidate.research_result as Parameters<typeof normalizeResearchProfile>[0],
+        )
+      : {};
+    const lead = createLead({
+      ...normalized,
+      businessName: business.name,
+      industry: normalized.industry ?? business.industry ?? undefined,
+      city: normalized.city ?? business.city ?? undefined,
+      state: normalized.state ?? business.state ?? undefined,
+      website: normalized.website ?? business.website_url ?? undefined,
+      services: currentConfig.data.services.items.map((service) => service.title),
+      businessDescription: currentConfig.data.about.body,
+      source: "admin-registry-image-refresh",
+    });
+    const briefs = Object.fromEntries(
+      [
+        ["hero", currentConfig.data.assets.hero.brief ?? currentConfig.data.assets.hero.alt],
+        ["about", currentConfig.data.assets.about.brief ?? currentConfig.data.assets.about.alt],
+        ["showcase-1", currentConfig.data.assets.gallery?.[0]?.brief],
+        ["showcase-2", currentConfig.data.assets.gallery?.[1]?.brief],
+        ["showcase-3", currentConfig.data.assets.gallery?.[2]?.brief],
+      ].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    );
+    const { sourceImagesForSite } = await import("./source-images-for-site.server");
+    const imageResult = await sourceImagesForSite({
+      lead,
+      style: currentConfig.data.design?.visualDirection ?? "professional",
+      briefs,
+    });
+    const nextConfig = applyPexelsImages(validateSiteConfig(currentConfig.data), imageResult);
+    const { data: updated, error: updateError } = await client
+      .from("prospect_demos")
+      .update({ site_config: nextConfig, generated_at: new Date().toISOString(), last_error: null })
+      .eq("id", demo.id)
+      .eq("created_by", user.id)
+      .select("id")
+      .maybeSingle();
+    if (updateError || !updated) throw new Error("Unable to save refreshed Pexels images.");
+    return { refreshed: imageResult.assets.length };
   });
 
 /** Public capability endpoint: only a hard-to-guess private preview token is accepted. */
@@ -1131,7 +1229,7 @@ export const recordProspectSmsCopy = createServerFn({ method: "POST" })
     const { data: draft, error } = await client
       .from("prospect_sms_drafts")
       .select(
-        "id, recipient_phone_normalized, stage, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
+        "id, recipient_phone_normalized, stage, consent_status, prospect_demos!inner(created_by, registry_candidates!inner(registry_businesses!inner(registry_id)))",
       )
       .eq("id", data.draftId)
       .eq("created_by", user.id)
@@ -1143,6 +1241,8 @@ export const recordProspectSmsCopy = createServerFn({ method: "POST" })
       respond(409, "This phone number is marked do-not-contact.");
     if (!draft.recipient_phone_normalized)
       respond(400, "Save a valid phone number before copying this text.");
+    if (draft.consent_status !== "opted_in")
+      respond(403, "Record the recipient's explicit opt-in before preparing a text for delivery.");
     await recordSmsEvent(client, draft.id, user.id, "copied_for_manual_send");
     return { recorded: true };
   });

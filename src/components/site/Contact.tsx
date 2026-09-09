@@ -5,6 +5,7 @@ import { Reveal } from "@/components/Reveal";
 import { CheckCircle2 } from "lucide-react";
 import { submitWebsiteContactLead } from "@/services/website-contact-leads";
 import type { DemoVisualDirection } from "@/data/demo-themes";
+import type { DemoSectionStyleOverride } from "@/data/generative-site";
 
 const inputClass =
   "mt-1.5 w-full rounded-lg bg-bone px-4 py-3 text-sm text-ink ring-1 ring-ink/10 placeholder:text-ink/35 focus:ring-2 focus:ring-clay focus:outline-none";
@@ -15,19 +16,25 @@ export type WebsiteLeadCaptureTarget =
 export function Contact({
   leadCaptureTarget,
   visualDirection,
+  content,
+  presentation,
 }: {
   leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
   visualDirection?: DemoVisualDirection | undefined;
+  content?: { eyebrow: string; heading: string; body: string } | undefined;
+  presentation?: DemoSectionStyleOverride | undefined;
 }) {
   const [sent, setSent] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
-  const { contact, leadHandling } = useSiteConfig();
+  const { contact: configuredContact, leadHandling } = useSiteConfig();
+  const contact = content ? { ...configuredContact, ...content } : configuredContact;
   const submitLead = useServerFn(submitWebsiteContactLead);
   const modern = visualDirection === "modern";
   const luxury = visualDirection === "luxury";
   const friendly = visualDirection === "friendly";
   const minimal = visualDirection === "minimal";
   const highContrastDark = modern || luxury;
+  const presentationTextStyle = presentation ? { color: presentation.textColor } : undefined;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,7 +64,12 @@ export function Contact({
   }
 
   return (
-    <section id="contact" className={friendly ? "bg-clay" : minimal ? "bg-sand/35" : "bg-ink"}>
+    <section
+      id="contact"
+      className={friendly ? "bg-clay" : minimal ? "bg-sand/35" : "bg-ink"}
+      data-custom-colors={presentation ? "true" : undefined}
+      style={presentation ? { backgroundColor: presentation.backgroundColor } : undefined}
+    >
       <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10 sm:py-20">
         <div
           className={`grid gap-10 md:grid-cols-2 lg:gap-16 ${luxury ? "md:grid-cols-[.85fr_1.15fr]" : ""}`}
@@ -65,16 +77,19 @@ export function Contact({
           <Reveal>
             <p
               className={`mb-3 text-sm font-semibold tracking-wide ${friendly ? "text-ink/65" : "text-clay"}`}
+              style={presentationTextStyle}
             >
               {contact.eyebrow}
             </p>
             <h2
               className={`font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-5xl ${minimal ? "text-ink" : "text-bone"}`}
+              style={presentationTextStyle}
             >
               {contact.heading}
             </h2>
             <p
               className={`mt-5 max-w-[44ch] leading-relaxed ${minimal ? "text-ink/72" : friendly ? "text-bone/90" : highContrastDark ? "text-bone/88" : "text-bone/72"}`}
+              style={presentationTextStyle}
             >
               {contact.body}
             </p>
@@ -86,10 +101,16 @@ export function Contact({
                 >
                   <dt
                     className={`w-20 shrink-0 ${minimal ? "text-ink/55" : highContrastDark ? "text-bone/72" : "text-bone/60"}`}
+                    style={presentationTextStyle}
                   >
                     {d.label}
                   </dt>
-                  <dd className={minimal ? "text-ink/80" : "text-bone/85"}>{d.value}</dd>
+                  <dd
+                    className={minimal ? "text-ink/80" : "text-bone/85"}
+                    style={presentationTextStyle}
+                  >
+                    {d.value}
+                  </dd>
                 </div>
               ))}
             </dl>

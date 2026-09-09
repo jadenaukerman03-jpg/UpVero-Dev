@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { subscriptionTiers } from "@/data/customization-tiers";
 import { siteConfigSchema } from "@/data/site";
+import { demoPresentationOverridesSchema } from "@/data/generative-site";
 
 const accessTokenSchema = z.string().min(1);
 const websiteStatusSchema = z.enum(["draft", "published", "archived"]);
@@ -275,6 +276,7 @@ export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
         accessToken: accessTokenSchema,
         previewToken: z.string().uuid(),
         claimToken: z.string().uuid(),
+        presentationOverrides: demoPresentationOverridesSchema.optional(),
       })
       .parse(data),
   )
@@ -308,6 +310,10 @@ export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
     const config = siteConfigSchema.safeParse(demo.site_config);
     if (!config.success)
       throw new Error("This private preview cannot be converted into a website draft.");
+    const claimedConfig = siteConfigSchema.parse({
+      ...config.data,
+      ...(data.presentationOverrides ? { presentationOverrides: data.presentationOverrides } : {}),
+    });
     const source = demo.registry_candidates as unknown as {
       registry_businesses:
         | { name: string; industry: string | null }
@@ -349,7 +355,7 @@ export const claimPrivateProspectDemo = createServerFn({ method: "POST" })
         owner_id: user.id,
         business_id: business.id,
         name: businessInfo.name,
-        site_config: config.data,
+        site_config: claimedConfig,
       })
       .select("id")
       .single();

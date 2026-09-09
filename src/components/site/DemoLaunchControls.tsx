@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   ChevronDown,
+  Globe2,
+  Image as ImageIcon,
   LayoutTemplate,
   Lock,
+  Mail,
   Palette,
   SlidersHorizontal,
   Sparkles,
@@ -11,6 +14,7 @@ import {
 } from "lucide-react";
 
 import type { DemoTheme, DemoVisualDirection, VisualDirectionDefinition } from "@/data/demo-themes";
+import type { GenerativeMediaSlot } from "@/data/generative-site";
 import {
   isOptionUnlocked,
   optionMinimumTier,
@@ -47,9 +51,39 @@ type DemoLaunchControlsProps = {
   onQualityModeChange?: ((mode: GenerationQualityMode) => void) | undefined;
   onAiRefine?:
     ((instruction: string, qualityMode: GenerationQualityMode) => Promise<void>) | undefined;
+  customizableSections?: DemoCustomizableSection[] | undefined;
+  onSectionStyleChange?:
+    ((sectionId: string, backgroundColor: string, textColor: string) => void) | undefined;
+  imageAreas?: DemoImageArea[] | undefined;
+  imageOptions?: DemoImageOption[] | undefined;
+  onSelectImage?: ((areaId: string, slot: GenerativeMediaSlot) => void) | undefined;
+  onLaunch?: (() => void) | undefined;
+  launchDisabled?: boolean;
+  showActivationGuide?: boolean;
+  launchNotice?: string | undefined;
 };
 
-type SettingsSection = "direction" | "colors" | "fonts" | "ai";
+export type DemoCustomizableSection = {
+  id: string;
+  label: string;
+  backgroundColor: string;
+  textColor: string;
+};
+
+export type DemoImageArea = {
+  id: string;
+  label: string;
+  selectedSlot: GenerativeMediaSlot;
+};
+
+export type DemoImageOption = {
+  slot: GenerativeMediaSlot;
+  label: string;
+  src: string;
+  alt: string;
+};
+
+type SettingsSection = "direction" | "colors" | "sections" | "images" | "fonts" | "ai" | "launch";
 
 export function DemoLaunchControls({
   businessName,
@@ -72,6 +106,15 @@ export function DemoLaunchControls({
   qualityMode = "studio",
   onQualityModeChange,
   onAiRefine,
+  customizableSections = [],
+  onSectionStyleChange,
+  imageAreas = [],
+  imageOptions = [],
+  onSelectImage,
+  onLaunch,
+  launchDisabled = false,
+  showActivationGuide = false,
+  launchNotice,
 }: DemoLaunchControlsProps) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [upgradeMessage, setUpgradeMessage] = useState("");
@@ -79,12 +122,29 @@ export function DemoLaunchControls({
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiStatus, setAiStatus] = useState("");
   const [refining, setRefining] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState(customizableSections[0]?.id ?? "");
+  const [activeImageAreaId, setActiveImageAreaId] = useState(imageAreas[0]?.id ?? "");
   const panelRef = useRef<HTMLDivElement>(null);
   const selectedDirectionLabel =
     directions.find((direction) => direction.id === selectedDirection)?.label ?? "Custom";
   const selectedThemeLabel =
     selectedTheme.id === "original" ? "Original palette" : selectedTheme.label;
-  const selectedFontLabel = selectedFont.id === "original" ? "Editorial type" : selectedFont.label;
+  const selectedFontLabel =
+    selectedFont.id === "original" ? "AI art-directed type" : selectedFont.label;
+  const activeSection =
+    customizableSections.find((section) => section.id === activeSectionId) ??
+    customizableSections[0];
+  const activeImageArea = imageAreas.find((area) => area.id === activeImageAreaId) ?? imageAreas[0];
+
+  useEffect(() => {
+    if (!customizableSections.some((section) => section.id === activeSectionId))
+      setActiveSectionId(customizableSections[0]?.id ?? "");
+  }, [activeSectionId, customizableSections]);
+
+  useEffect(() => {
+    if (!imageAreas.some((area) => area.id === activeImageAreaId))
+      setActiveImageAreaId(imageAreas[0]?.id ?? "");
+  }, [activeImageAreaId, imageAreas]);
 
   useEffect(() => {
     function collapseWhileExploringPreview(event: Event) {
@@ -158,10 +218,17 @@ export function DemoLaunchControls({
     label: string;
     icon: typeof LayoutTemplate;
   }> = [
-    { id: "direction", label: "Layout", icon: LayoutTemplate },
+    { id: "direction", label: "Direction", icon: LayoutTemplate },
     { id: "colors", label: "Colors", icon: Palette },
+    ...(customizableSections.length
+      ? [{ id: "sections" as const, label: "Sections", icon: Palette }]
+      : []),
+    ...(imageAreas.length && imageOptions.length
+      ? [{ id: "images" as const, label: "Images", icon: ImageIcon }]
+      : []),
     { id: "fonts", label: "Type", icon: Type },
     ...(onAiRefine ? [{ id: "ai" as const, label: "AI", icon: Sparkles }] : []),
+    ...(showActivationGuide ? [{ id: "launch" as const, label: "Go live", icon: Globe2 }] : []),
   ];
 
   return (
@@ -219,7 +286,7 @@ export function DemoLaunchControls({
         )}
 
         <div
-          className={`grid ${onAiRefine ? "grid-cols-4" : "grid-cols-3"} border-b border-bone/10 px-3 pt-2 sm:px-4`}
+          className="editor-settings-tabs flex overflow-x-auto border-b border-bone/10 px-3 pt-2 sm:px-4"
           role="tablist"
           aria-label="Website settings"
         >
@@ -233,7 +300,7 @@ export function DemoLaunchControls({
                 role="tab"
                 aria-selected={selected}
                 onClick={() => setSettingsSection(tab.id)}
-                className={`flex min-h-11 items-center justify-center gap-2 border-b-2 px-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-clay ${selected ? "border-clay text-bone" : "border-transparent text-bone/45 hover:text-bone/80"}`}
+                className={`flex min-h-11 shrink-0 items-center justify-center gap-2 border-b-2 px-3 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-clay ${selected ? "border-clay text-bone" : "border-transparent text-bone/45 hover:text-bone/80"}`}
               >
                 <Icon className="size-3.5" /> {tab.label}
               </button>
@@ -320,6 +387,106 @@ export function DemoLaunchControls({
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {settingsSection === "sections" && activeSection && onSectionStyleChange && (
+            <div className="space-y-4">
+              <label className="block text-xs font-semibold text-bone">
+                Area
+                <select
+                  value={activeSection.id}
+                  onChange={(event) => setActiveSectionId(event.target.value)}
+                  className="mt-2 min-h-10 w-full rounded-xl border border-bone/15 bg-ink px-3 text-xs text-bone outline-none focus:border-clay"
+                >
+                  {customizableSections.map((section) => (
+                    <option value={section.id} key={section.id}>
+                      {section.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="rounded-xl border border-bone/10 bg-bone/5 p-3 text-xs font-semibold text-bone">
+                  Background
+                  <input
+                    type="color"
+                    value={activeSection.backgroundColor}
+                    onChange={(event) =>
+                      onSectionStyleChange(
+                        activeSection.id,
+                        event.target.value,
+                        activeSection.textColor,
+                      )
+                    }
+                    className="mt-2 h-11 w-full cursor-pointer rounded-lg border-0 bg-transparent p-0"
+                    aria-label={`${activeSection.label} background color`}
+                  />
+                  <span className="mt-1 block font-mono text-[10px] text-bone/55">
+                    {activeSection.backgroundColor}
+                  </span>
+                </label>
+                <label className="rounded-xl border border-bone/10 bg-bone/5 p-3 text-xs font-semibold text-bone">
+                  Wording
+                  <input
+                    type="color"
+                    value={activeSection.textColor}
+                    onChange={(event) =>
+                      onSectionStyleChange(
+                        activeSection.id,
+                        activeSection.backgroundColor,
+                        event.target.value,
+                      )
+                    }
+                    className="mt-2 h-11 w-full cursor-pointer rounded-lg border-0 bg-transparent p-0"
+                    aria-label={`${activeSection.label} wording color`}
+                  />
+                  <span className="mt-1 block font-mono text-[10px] text-bone/55">
+                    {activeSection.textColor}
+                  </span>
+                </label>
+              </div>
+              <p className="text-[10px] leading-relaxed text-bone/50">
+                Every color is available. If a wording color is too close to its background, Upvero
+                automatically chooses readable black or white text.
+              </p>
+            </div>
+          )}
+
+          {settingsSection === "images" && activeImageArea && onSelectImage && (
+            <div className="space-y-4">
+              <label className="block text-xs font-semibold text-bone">
+                Image area
+                <select
+                  value={activeImageArea.id}
+                  onChange={(event) => setActiveImageAreaId(event.target.value)}
+                  className="mt-2 min-h-10 w-full rounded-xl border border-bone/15 bg-ink px-3 text-xs text-bone outline-none focus:border-clay"
+                >
+                  {imageAreas.map((area) => (
+                    <option value={area.id} key={area.id}>
+                      {area.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {imageOptions.map((image) => {
+                  const selected = activeImageArea.selectedSlot === image.slot;
+                  return (
+                    <button
+                      type="button"
+                      key={`${activeImageArea.id}-${image.slot}`}
+                      onClick={() => onSelectImage(activeImageArea.id, image.slot)}
+                      className={`overflow-hidden rounded-xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay/15" : "border-bone/10 bg-bone/5 hover:border-bone/30"}`}
+                    >
+                      <img src={image.src} alt="" className="aspect-[4/3] w-full object-cover" />
+                      <span className="block truncate px-2 py-2 text-[10px] font-semibold text-bone">
+                        {image.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -439,6 +606,64 @@ export function DemoLaunchControls({
             </div>
           )}
 
+          {settingsSection === "launch" && showActivationGuide && (
+            <div className="space-y-3 text-xs leading-relaxed text-bone/75">
+              <p className="font-semibold text-bone">What happens after you choose this website</p>
+              <ol className="space-y-2 pl-4 [list-style:decimal]">
+                <li>Claim the private demo, create your account, and choose an Upvero plan.</li>
+                <li>
+                  Use a domain you own or register one through{" "}
+                  <a
+                    className="text-clay underline"
+                    href="https://www.cloudflare.com/products/registrar/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Cloudflare Registrar
+                  </a>{" "}
+                  or{" "}
+                  <a
+                    className="text-clay underline"
+                    href="https://www.namecheap.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Namecheap
+                  </a>
+                  .
+                </li>
+                <li>
+                  Follow your host's DNS instructions and verify HTTPS before sharing the domain.
+                </li>
+                <li>
+                  Forward website inquiries with{" "}
+                  <a
+                    className="text-clay underline"
+                    href="https://developers.cloudflare.com/email-routing/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Cloudflare Email Routing
+                  </a>{" "}
+                  or create a mailbox with{" "}
+                  <a
+                    className="text-clay underline"
+                    href="https://workspace.google.com/products/gmail/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google Workspace
+                  </a>
+                  .
+                </li>
+              </ol>
+              <p className="flex gap-2 rounded-xl bg-bone/5 p-3 text-bone/60">
+                <Mail className="mt-0.5 size-3.5 shrink-0" /> Domain connection and mailbox setup
+                remain guided steps; this preview does not publish itself.
+              </p>
+            </div>
+          )}
+
           {upgradeMessage && (
             <p
               className="mt-3 rounded-lg bg-clay/15 px-3 py-2 text-xs font-medium text-bone"
@@ -450,13 +675,30 @@ export function DemoLaunchControls({
         </div>
 
         <div className="border-t border-bone/10 p-3 sm:px-4">
-          <a
-            href={launchHref}
-            className="group flex min-h-11 items-center justify-center gap-2 rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition hover:-translate-y-0.5 hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
-          >
-            {launchLabel}{" "}
-            <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </a>
+          {onLaunch ? (
+            <button
+              type="button"
+              disabled={launchDisabled}
+              onClick={onLaunch}
+              className="group flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition hover:-translate-y-0.5 hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {launchLabel}{" "}
+              <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </button>
+          ) : (
+            <a
+              href={launchHref}
+              className="group flex min-h-11 items-center justify-center gap-2 rounded-full bg-clay px-5 py-3 text-sm font-semibold text-bone transition hover:-translate-y-0.5 hover:bg-clay-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
+            >
+              {launchLabel}{" "}
+              <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </a>
+          )}
+          {launchNotice ? (
+            <p className="mt-2 text-center text-[11px] leading-relaxed text-bone/70" role="status">
+              {launchNotice}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

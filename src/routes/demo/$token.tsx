@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { SitePreview } from "@/components/site/SitePreview";
 import type { SiteConfig } from "@/data/site";
+import type { DemoPresentationOverrides } from "@/data/generative-site";
 import { getPrivateProspectDemo } from "@/services/admin-registry";
 import { claimPrivateProspectDemo } from "@/services/customer-data";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
@@ -41,11 +42,11 @@ function PrivateProspectDemoRoute() {
     };
   }, [loadDemo, token]);
 
-  async function claim() {
+  async function claim(presentationOverrides: DemoPresentationOverrides) {
     if (!claimToken || claiming) return;
     const { data } = await createBrowserSupabaseClient().auth.getSession();
     if (!data.session) {
-      const destination = `/demo/${token}?claim=${encodeURIComponent(claimToken)}`;
+      const destination = `/demo/${token}`;
       window.location.assign(`/account?next=${encodeURIComponent(destination)}`);
       return;
     }
@@ -53,7 +54,12 @@ function PrivateProspectDemoRoute() {
     setClaimNotice("");
     try {
       const result = await claimDemo({
-        data: { accessToken: data.session.access_token, previewToken: token, claimToken },
+        data: {
+          accessToken: data.session.access_token,
+          previewToken: token,
+          claimToken,
+          presentationOverrides,
+        },
       });
       const claimed = result as { websiteId: string };
       window.location.assign(`/launch?website=${encodeURIComponent(claimed.websiteId)}`);
@@ -89,37 +95,23 @@ function PrivateProspectDemoRoute() {
   }
 
   return (
-    <>
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-2xl border border-stone-300 bg-white p-4 shadow-lg">
-        <p className="text-sm font-semibold text-stone-900">Like this website?</p>
-        <p className="mt-1 text-sm text-stone-600">
-          Claim this private draft, create your account, then choose a plan when you are ready.
-        </p>
-        {claimToken ? (
-          <button
-            type="button"
-            className="mt-3 rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white"
-            disabled={claiming}
-            onClick={() => void claim()}
-          >
-            {claiming ? "Claiming preview…" : "Claim this website"}
-          </button>
-        ) : (
-          <p className="mt-3 text-sm font-medium text-stone-700">
-            This preview has already been claimed.
-          </p>
-        )}
-        {claimNotice ? (
-          <p className="mt-2 text-sm text-red-700" role="status">
-            {claimNotice}
-          </p>
-        ) : null}
-      </div>
-      <SitePreview
-        config={config}
-        showVisualDirectionLayout
-        leadCaptureTarget={{ kind: "private_demo", token }}
-      />
-    </>
+    <SitePreview
+      config={config}
+      showDemoLaunchControls
+      demoControlsInitiallyExpanded={false}
+      allowAllDemoPreviewOptions
+      leadCaptureTarget={{ kind: "private_demo", token }}
+      demoLaunchLabel={
+        claiming
+          ? "Claiming website…"
+          : claimToken
+            ? "Buy & activate this website"
+            : "This website has been claimed"
+      }
+      demoLaunchDisabled={claiming || !claimToken}
+      demoLaunchNotice={claimNotice}
+      showActivationGuide
+      onDemoLaunch={(presentationOverrides) => void claim(presentationOverrides)}
+    />
   );
 }
