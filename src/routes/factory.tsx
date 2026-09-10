@@ -9,7 +9,6 @@ import { validateSiteConfig, type SiteConfig } from "@/data/site";
 import { visualStyleOptions, type ImageSelectionResult, type VisualStyle } from "@/data/visuals";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { createBusinessOperationScope, saveGeneratedWebsite } from "@/services/customer-data";
-import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
 import { generateSiteConfigWithAI } from "@/services/generate-site-config-with-ai";
 import { sourceImagesForSiteServer } from "@/services/source-images-for-site";
 import { researchBusinessServer } from "@/services/research-business";
@@ -90,7 +89,6 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
   const [previewConfig, setPreviewConfig] = useState<SiteConfig | null>(null);
   const [researchResult, setResearchResult] = useState<ResearchJobResult | null>(null);
   const [message, setMessage] = useState("Enter a lead and generate a draft configuration.");
-  const [isGeneratingWithAi, setIsGeneratingWithAi] = useState(false);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [visualStyle, setVisualStyle] = useState<VisualStyle>("professional");
   const [generatedImages, setGeneratedImages] = useState<ImageSelectionResult | null>(null);
@@ -119,7 +117,7 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
     setPreviewConfig(null);
     setGeneratedImages(null);
     setOperationBusinessId(null);
-    setMessage("Example lead loaded. Choose Mock Data or AI generation when ready.");
+    setMessage("Example lead loaded. Generate the personalized website when ready.");
   }
 
   function updateFormValue(name: string, value: string) {
@@ -200,18 +198,6 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
     }
   }
 
-  function generateMockFromInput(input: LeadInput) {
-    try {
-      const lead = createLead(input);
-      setPreviewConfig(generateSiteConfigFromLead(lead));
-      setMessage(
-        `Generated and validated a mock configuration for ${lead.businessName ?? "this lead"}.`,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to generate a configuration.");
-    }
-  }
-
   function readLeadInput(form: HTMLFormElement): LeadInput {
     const values = new FormData(form);
     return {
@@ -228,35 +214,6 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
       businessDescription: optionalValue(values.get("businessDescription")),
       notes: optionalValue(values.get("notes")),
     };
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    generateMockFromInput(readLeadInput(event.currentTarget));
-  }
-
-  async function handleAiGeneration() {
-    const form = formRef.current;
-    if (!form || !form.reportValidity()) return;
-
-    try {
-      setIsGeneratingWithAi(true);
-      setMessage("Generating website content with OpenAI…");
-      const lead = createLead(readLeadInput(form));
-      const scope = await requireOperationScope(lead.businessName, lead.industry);
-      const config = await unwrapProtectedOperation(generateWithAi({ data: { ...scope, lead } }));
-      setPreviewConfig(config);
-      setGeneratedImages(null);
-      setMessage(`Generated and validated AI content for ${lead.businessName ?? "this lead"}.`);
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to generate AI content. Use Mock Data or retry.",
-      );
-    } finally {
-      setIsGeneratingWithAi(false);
-    }
   }
 
   async function handleAiGenerationWithImages() {
@@ -489,7 +446,14 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
             </button>
           </div>
 
-          <form ref={formRef} onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+          <form
+            ref={formRef}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAiGenerationWithImages();
+            }}
+            className="grid gap-4 sm:grid-cols-2"
+          >
             <label className="text-sm font-medium sm:col-span-2">
               Business name
               <input
@@ -604,31 +568,10 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
               <button
                 type="submit"
-                className="rounded-full bg-clay px-5 py-2.5 text-sm font-medium text-bone transition-colors hover:bg-clay-dark"
-              >
-                {researchResult
-                  ? "Generate Website From Research (Mock Data)"
-                  : "Generate with Mock Data"}
-              </button>
-              <button
-                type="button"
-                onClick={handleAiGeneration}
-                disabled={isGeneratingWithAi}
+                disabled={isGeneratingImages}
                 className="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-bone transition-colors hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isGeneratingWithAi
-                  ? "Generating with AI…"
-                  : researchResult
-                    ? "Generate Website From Research (AI)"
-                    : "Generate with AI"}
-              </button>
-              <button
-                type="button"
-                onClick={handleAiGenerationWithImages}
-                disabled={isGeneratingWithAi || isGeneratingImages}
-                className="rounded-full border border-ink/20 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-sand disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isGeneratingImages ? "Searching Pexels…" : "Generate AI Website + Pexels Images"}
+                {isGeneratingImages ? "Generating using AI…" : "Generate using AI"}
               </button>
               <p className="text-sm text-ink/60" role="status">
                 {message}
