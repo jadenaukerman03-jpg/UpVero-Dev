@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "bun test",
+    "verify:client-bundle": "bun scripts/verify-client-bundle.ts",
+    "check": "bun x tsc --noEmit && bun run lint && bun test && bun run build && bun run verify:client-bundle",
     "format": "prettier --write ."
   },
   "overrides": {
