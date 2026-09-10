@@ -162,4 +162,15 @@ describe("generative site document validation", () => {
       }),
     );
   });
+
+  test("repairs user-selected section text before the override can be saved", () => {
+    const result = demoPresentationOverridesSchema.parse({
+      sectionStyles: {
+        hero: { backgroundColor: "#25282D", textColor: "#33363B" },
+      },
+      imageAssignments: {},
+    });
+    const hero = result.sectionStyles["hero"]!;
+    assert.ok(colorContrast(hero.backgroundColor, hero.textColor) >= 4.5);
+  });
 });

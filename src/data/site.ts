@@ -3,6 +3,7 @@ import { safeHttpsUrlSchema, safeLinkHrefSchema } from "@/lib/safe-url";
 import { generationQualityModes, type GenerationQualityMode } from "./site-generation";
 import {
   demoPresentationOverridesSchema,
+  enforceGenerativeContrast,
   generativeSiteBundleSchema,
   type DemoPresentationOverrides,
   type GenerativeSiteBundle,
@@ -356,7 +357,13 @@ export const siteConfigSchema = z.object({
 });
 
 export function validateSiteConfig(config: unknown): SiteConfig {
-  return siteConfigSchema.parse(config) as SiteConfig;
+  const parsed = siteConfigSchema.parse(config) as SiteConfig;
+  return parsed.generatedExperience
+    ? {
+        ...parsed,
+        generatedExperience: enforceGenerativeContrast(parsed.generatedExperience),
+      }
+    : parsed;
 }
 
 const vantageBrand: SiteConfig["brand"] = {

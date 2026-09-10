@@ -17,7 +17,12 @@ import {
 } from "@/data/generative-site";
 import type { GenerationQualityMode } from "@/data/site-generation";
 import { SiteConfigProvider } from "@/data/site-config-context";
-import { collectPreviewAudit, type PreviewRenderAudit } from "@/lib/preview-audit";
+import { createSemanticThemeTokens, repairGeneratedPalette } from "@/lib/color-contrast";
+import {
+  collectPreviewAudit,
+  logContrastAuditInDevelopment,
+  type PreviewRenderAudit,
+} from "@/lib/preview-audit";
 
 import { About } from "./About";
 import { Contact } from "./Contact";
@@ -125,11 +130,32 @@ export function SitePreview({
     (variant) => variant.direction === directionId,
   );
   const selectedFont = fontOptions.find((font) => font.id === fontId) ?? fontOptions[0]!;
+  const generatedAccentOverride =
+    selectedTheme.id !== "original" ? selectedTheme.swatches[2] : config.design?.primaryColor;
+  const fallbackThemeTokens = createSemanticThemeTokens({
+    background: selectedTheme.swatches[0],
+    surface: selectedTheme.swatches[0],
+    surfaceText: selectedTheme.swatches[1],
+    text: selectedTheme.swatches[1],
+    mutedText: selectedTheme.swatches[1],
+    contrast: selectedTheme.swatches[1],
+    contrastText: selectedTheme.swatches[0],
+    accent: generatedAccentOverride ?? selectedTheme.swatches[2],
+    accentText: selectedTheme.swatches[0],
+  });
+
+  useEffect(() => {
+    const root = previewRootRef.current;
+    if (!root) return;
+    const frame = requestAnimationFrame(() => logContrastAuditInDevelopment(root));
+    return () => cancelAnimationFrame(frame);
+  }, [directionId, fontId, presentationOverrides, themeId]);
 
   function persistPresentation(next: DemoPresentationOverrides) {
-    setPresentationOverrides(next);
+    const validated = demoPresentationOverridesSchema.parse(next);
+    setPresentationOverrides(validated);
     if (typeof window !== "undefined")
-      window.localStorage.setItem(presentationStorageKey, JSON.stringify(next));
+      window.localStorage.setItem(presentationStorageKey, JSON.stringify(validated));
   }
 
   useEffect(() => {
@@ -221,17 +247,25 @@ export function SitePreview({
         ...selectedTheme.variables,
         ...selectedDirection.variables,
         ...selectedFont.variables,
-        ...(config.design?.primaryColor ? { "--clay": config.design.primaryColor } : {}),
+        "--bone": fallbackThemeTokens.pageBackground,
+        "--sand": fallbackThemeTokens.surfaceBackground,
+        "--ink": fallbackThemeTokens.primaryText,
+        "--clay": fallbackThemeTokens.linkText,
+        "--clay-dark": fallbackThemeTokens.buttonHoverBackground,
       } as CSSProperties)
     : config.design
       ? ({
           ...selectedDirection.variables,
-          ...(config.design.primaryColor ? { "--clay": config.design.primaryColor } : {}),
+          "--bone": fallbackThemeTokens.pageBackground,
+          "--sand": fallbackThemeTokens.surfaceBackground,
+          "--ink": fallbackThemeTokens.primaryText,
+          "--clay": fallbackThemeTokens.linkText,
+          "--clay-dark": fallbackThemeTokens.buttonHoverBackground,
         } as CSSProperties)
       : undefined;
   const customizableSections = useMemo<DemoCustomizableSection[]>(() => {
     if (!selectedGeneratedVariant) return [];
-    const palette = selectedGeneratedVariant.palette;
+    const palette = repairGeneratedPalette(selectedGeneratedVariant.palette);
     const defaultsForTone = (tone: "base" | "contrast" | "accent") =>
       tone === "contrast"
         ? { backgroundColor: palette.contrast, textColor: palette.contrastText }
@@ -340,6 +374,7 @@ export function SitePreview({
             variant={selectedGeneratedVariant}
             leadCaptureTarget={leadCaptureTarget}
             fontOverride={fontId === "original" ? undefined : selectedFont.variables}
+            accentOverride={generatedAccentOverride}
             presentationOverrides={presentationOverrides}
           />
         ) : useVisualDirectionLayout ? (

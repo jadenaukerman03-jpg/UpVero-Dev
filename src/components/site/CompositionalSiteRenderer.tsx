@@ -10,6 +10,12 @@ import type {
 } from "@/data/generative-site";
 import type { SiteConfig } from "@/data/site";
 import { useSiteConfig } from "@/data/site-config-context";
+import {
+  closestReadableColor,
+  createSemanticThemeTokens,
+  repairGeneratedPalette,
+  WCAG_CONTRAST,
+} from "@/lib/color-contrast";
 
 import { Contact, type WebsiteLeadCaptureTarget } from "./Contact";
 
@@ -185,14 +191,19 @@ function ItemGrid({ section }: { section: GenerativeSiteSection }) {
 function sectionPresentation(id: string, presentationOverrides?: DemoPresentationOverrides) {
   const override = presentationOverrides?.sectionStyles[id];
   if (!override) return {};
+  const textColor = closestReadableColor(override.textColor, override.backgroundColor);
+  const borderColor = closestReadableColor(textColor, override.backgroundColor, WCAG_CONTRAST.ui);
   return {
     "data-custom-colors": "true",
     style: {
       backgroundColor: override.backgroundColor,
-      color: override.textColor,
+      color: textColor,
       "--gs-section-bg": override.backgroundColor,
-      "--gs-section-text": override.textColor,
-      "--gs-muted": override.textColor,
+      "--gs-section-text": textColor,
+      "--gs-section-border": borderColor,
+      "--gs-muted": textColor,
+      "--gs-border": borderColor,
+      "--gs-focus": borderColor,
     } as CSSProperties,
   };
 }
@@ -411,26 +422,53 @@ export function CompositionalSiteRenderer({
   variant,
   leadCaptureTarget,
   fontOverride,
+  accentOverride,
   presentationOverrides,
 }: {
   variant: GenerativeSiteVariant;
   leadCaptureTarget?: WebsiteLeadCaptureTarget | undefined;
   fontOverride?: PreviewFontVariables | undefined;
+  accentOverride?: string | undefined;
   presentationOverrides?: DemoPresentationOverrides | undefined;
 }) {
-  const palette = variant.palette;
+  const palette = repairGeneratedPalette({
+    ...variant.palette,
+    ...(accentOverride ? { accent: accentOverride } : {}),
+  });
+  const tokens = createSemanticThemeTokens(palette);
   const style = {
     ...generatedTypographyVariables[variant.typography],
     ...fontOverride,
-    "--gs-bg": palette.background,
-    "--gs-surface": palette.surface,
-    "--gs-surface-text": palette.surfaceText,
-    "--gs-text": palette.text,
-    "--gs-muted": palette.mutedText,
-    "--gs-contrast": palette.contrast,
-    "--gs-contrast-text": palette.contrastText,
-    "--gs-accent": "var(--clay, " + palette.accent + ")",
-    "--gs-accent-text": `var(--bone, ${palette.accentText})`,
+    "--gs-bg": tokens.pageBackground,
+    "--gs-surface": tokens.surfaceBackground,
+    "--gs-surface-text": closestReadableColor(palette.surfaceText, tokens.surfaceBackground),
+    "--gs-text": tokens.primaryText,
+    "--gs-muted": tokens.mutedText,
+    "--gs-border": tokens.borderColor,
+    "--gs-focus": tokens.focusIndicator,
+    "--gs-link": tokens.linkText,
+    "--gs-button-bg": tokens.buttonBackground,
+    "--gs-button-text": tokens.buttonText,
+    "--gs-button-hover-bg": tokens.buttonHoverBackground,
+    "--gs-button-hover-text": tokens.buttonHoverText,
+    "--gs-disabled-bg": tokens.disabledBackground,
+    "--gs-disabled-text": tokens.disabledText,
+    "--gs-contrast": tokens.contrastBackground,
+    "--gs-contrast-text": tokens.contrastPrimaryText,
+    "--gs-contrast-muted": tokens.contrastMutedText,
+    "--gs-contrast-surface": tokens.contrastSurface,
+    "--gs-contrast-surface-text": tokens.contrastSurfaceText,
+    "--gs-contrast-button-bg": tokens.contrastButtonBackground,
+    "--gs-contrast-button-text": tokens.contrastButtonText,
+    "--gs-accent": tokens.accentBackground,
+    "--gs-accent-text": tokens.accentPrimaryText,
+    "--gs-accent-muted": tokens.accentMutedText,
+    "--gs-accent-surface": tokens.accentSurface,
+    "--gs-accent-surface-text": tokens.accentSurfaceText,
+    "--gs-accent-button-bg": tokens.accentButtonBackground,
+    "--gs-accent-button-text": tokens.accentButtonText,
+    "--gs-media-overlay": tokens.mediaOverlay,
+    "--gs-media-text": tokens.mediaText,
   } as CSSProperties;
 
   return (
@@ -477,7 +515,20 @@ export function CompositionalSiteRenderer({
               textColor: variant.palette.contrastText,
             };
             return (
-              <div id={section.id} key={section.id}>
+              <div
+                id={section.id}
+                key={section.id}
+                style={
+                  {
+                    "--gs-button-bg": tokens.contrastButtonBackground,
+                    "--gs-button-text": tokens.contrastButtonText,
+                    "--gs-button-hover-bg": tokens.contrastButtonBackground,
+                    "--gs-button-hover-text": tokens.contrastButtonText,
+                    "--gs-border": tokens.contrastPrimaryText,
+                    "--gs-focus": tokens.contrastPrimaryText,
+                  } as CSSProperties
+                }
+              >
                 <Contact
                   leadCaptureTarget={leadCaptureTarget}
                   visualDirection={variant.direction}

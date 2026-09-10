@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  closestReadableColor,
+  contrastRatio,
+  repairGeneratedPalette,
+  type GeneratedPalette,
+} from "@/lib/color-contrast";
+
 export const generativeDirections = [
   "professional",
   "modern",
@@ -295,49 +302,40 @@ export const demoSectionStyleOverrideSchema = z.object({
   textColor: hexColorSchema,
 });
 
-export const demoPresentationOverridesSchema = z.object({
-  visualDirection: z.enum(generativeDirections).optional(),
-  themeId: z.string().trim().min(1).max(80).optional(),
-  fontId: z.string().trim().min(1).max(80).optional(),
-  sectionStyles: z
-    .record(z.string().trim().min(1).max(80), demoSectionStyleOverrideSchema)
-    .default({}),
-  imageAssignments: z
-    .record(z.string().trim().min(1).max(100), z.enum(generativeMediaSlots))
-    .default({}),
-});
+export const demoPresentationOverridesSchema = z
+  .object({
+    visualDirection: z.enum(generativeDirections).optional(),
+    themeId: z.string().trim().min(1).max(80).optional(),
+    fontId: z.string().trim().min(1).max(80).optional(),
+    sectionStyles: z
+      .record(z.string().trim().min(1).max(80), demoSectionStyleOverrideSchema)
+      .default({}),
+    imageAssignments: z
+      .record(z.string().trim().min(1).max(100), z.enum(generativeMediaSlots))
+      .default({}),
+  })
+  .transform((presentation) => ({
+    ...presentation,
+    sectionStyles: Object.fromEntries(
+      Object.entries(presentation.sectionStyles).map(([sectionId, style]) => [
+        sectionId,
+        {
+          backgroundColor: style.backgroundColor.toUpperCase(),
+          textColor: closestReadableColor(style.textColor, style.backgroundColor),
+        },
+      ]),
+    ),
+  }));
 
 export type DemoSectionStyleOverride = z.infer<typeof demoSectionStyleOverrideSchema>;
 export type DemoPresentationOverrides = z.infer<typeof demoPresentationOverridesSchema>;
 
-function hexToRgb(hex: string) {
-  return {
-    r: Number.parseInt(hex.slice(1, 3), 16),
-    g: Number.parseInt(hex.slice(3, 5), 16),
-    b: Number.parseInt(hex.slice(5, 7), 16),
-  };
-}
-
-function relativeLuminance(hex: string) {
-  const { r, g, b } = hexToRgb(hex);
-  const channel = (value: number) => {
-    const normalized = value / 255;
-    return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
-
 export function colorContrast(first: string, second: string) {
-  const light = Math.max(relativeLuminance(first), relativeLuminance(second));
-  const dark = Math.min(relativeLuminance(first), relativeLuminance(second));
-  return (light + 0.05) / (dark + 0.05);
+  return contrastRatio(first, second);
 }
 
 export function readableTextColor(background: string, preferred: string) {
-  if (colorContrast(background, preferred) >= 4.5) return preferred.toUpperCase();
-  return colorContrast(background, "#FFFFFF") >= colorContrast(background, "#111318")
-    ? "#FFFFFF"
-    : "#111318";
+  return closestReadableColor(preferred, background);
 }
 
 /** Guarantees readable model-selected colors before they reach the DOM. */
@@ -346,14 +344,7 @@ export function enforceGenerativeContrast(bundle: GenerativeSiteBundle): Generat
     ...bundle,
     variants: bundle.variants.map((variant) => ({
       ...variant,
-      palette: {
-        ...variant.palette,
-        surfaceText: readableTextColor(variant.palette.surface, variant.palette.surfaceText),
-        text: readableTextColor(variant.palette.background, variant.palette.text),
-        mutedText: readableTextColor(variant.palette.background, variant.palette.mutedText),
-        contrastText: readableTextColor(variant.palette.contrast, variant.palette.contrastText),
-        accentText: readableTextColor(variant.palette.accent, variant.palette.accentText),
-      },
+      palette: repairGeneratedPalette(variant.palette as GeneratedPalette),
     })),
   };
 }

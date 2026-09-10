@@ -647,15 +647,17 @@ function modelFor(mode: GenerationQualityMode, role: ModelRole): string {
   return override || process.env["OPENAI_SITE_MODEL"] || defaultModelByMode[mode][role];
 }
 
-function reasoningFor(mode: GenerationQualityMode) {
+function reasoningFor(mode: GenerationQualityMode, role: ModelRole) {
   return {
     reasoning: {
       effort:
-        mode === "efficient"
+        role === "composer" || role === "repair"
           ? ("low" as const)
-          : mode === "studio"
-            ? ("medium" as const)
-            : ("high" as const),
+          : mode === "efficient"
+            ? ("low" as const)
+            : mode === "studio"
+              ? ("medium" as const)
+              : ("high" as const),
     },
   };
 }
@@ -703,15 +705,28 @@ async function requestStructuredResponse<T extends StructuredResponse>({
   for (let attempt = 0; attempt < 2; attempt += 1) {
     response = await retryTransient(operation);
     recordUsage(telemetry, model, response);
-    if (response.output_text) return response;
+    const completed = !response.status || response.status === "completed";
+    let validJson = false;
+    if (response.output_text && completed) {
+      try {
+        JSON.parse(response.output_text);
+        validJson = true;
+      } catch {
+        validJson = false;
+      }
+    }
+    if (validJson) return response;
     console.error("OpenAI structured response was incomplete", {
       phase,
       attempt: attempt + 1,
       status: response.status,
       reason: response.incomplete_details?.reason,
+      hasOutput: Boolean(response.output_text),
     });
   }
-  return response!;
+  throw new Error(
+    `OpenAI returned incomplete structured content during ${phase}. Please retry generation.`,
+  );
 }
 
 async function retryTransient<T>(operation: () => Promise<T>): Promise<T> {
@@ -1141,7 +1156,10 @@ export async function createAiSiteConfig(
     costCents: 0,
     models: new Set<string>(),
   };
-  const reasoning = reasoningFor(qualityMode);
+  const strategistReasoning = reasoningFor(qualityMode, "strategist");
+  const composerReasoning = reasoningFor(qualityMode, "composer");
+  const criticReasoning = reasoningFor(qualityMode, "critic");
+  const repairReasoning = reasoningFor(qualityMode, "repair");
   const strategistModel = modelFor(qualityMode, "strategist");
   const composerModel = modelFor(qualityMode, "composer");
   const criticModel = modelFor(qualityMode, "critic");
@@ -1151,7 +1169,7 @@ export async function createAiSiteConfig(
   try {
     const composeCreativePlan = () =>
       client.responses.create({
-        ...reasoning,
+        ...strategistReasoning,
         model: strategistModel,
         store: false,
         max_output_tokens: qualityMode === "efficient" ? 2800 : 4200,
@@ -1211,11 +1229,11 @@ export async function createAiSiteConfig(
 
     const composeSite = (schemaRepairIssues: string[] = []) =>
       client.responses.create({
-        ...reasoning,
+        ...composerReasoning,
         model: composerModel,
         store: false,
         max_output_tokens:
-          qualityMode === "efficient" ? 11000 : qualityMode === "studio" ? 16000 : 18000,
+          qualityMode === "efficient" ? 14000 : qualityMode === "studio" ? 24000 : 28000,
         instructions: `${AI_INSTRUCTIONS}\n\n${GENERATIVE_EXPERIENCE_INSTRUCTIONS}`,
         input: JSON.stringify({
           lead,
@@ -1290,7 +1308,7 @@ export async function createAiSiteConfig(
       const criticResponse = await requestStructuredResponse({
         operation: () =>
           client.responses.create({
-            ...reasoning,
+            ...criticReasoning,
             model: criticModel,
             store: false,
             max_output_tokens: 2400,
@@ -1332,11 +1350,11 @@ export async function createAiSiteConfig(
         const repairResponse = await requestStructuredResponse({
           operation: () =>
             client.responses.create({
-              ...reasoning,
+              ...repairReasoning,
               model: repairModel,
               store: false,
               max_output_tokens:
-                qualityMode === "efficient" ? 11000 : qualityMode === "studio" ? 16000 : 18000,
+                qualityMode === "efficient" ? 14000 : qualityMode === "studio" ? 24000 : 28000,
               instructions: `${AI_INSTRUCTIONS}\n\n${GENERATIVE_EXPERIENCE_INSTRUCTIONS}\n\nYou are performing a senior-editor repair pass. Correct every supplied issue, including each quoted banned phrase. Make the page unmistakably specific to this business, preserve only grounded facts, and return the complete JSON rather than a patch.`,
               input: JSON.stringify({
                 lead,
