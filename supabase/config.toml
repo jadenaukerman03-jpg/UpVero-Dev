@@ -1,0 +1,6 @@
+project_id = "kvgjtbulyuepmbhoflvi"
+
+# Stripe cannot send a Supabase JWT. This function authenticates every request
+# with Stripe's signature over the raw request body instead.
+[functions.stripe-webhook]
+verify_jwt = false

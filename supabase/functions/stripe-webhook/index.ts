@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@22.6.0";
+import { decideWebhookEventAction, type WebhookEventRecord } from "./idempotency.ts";
 
 const supportedSubscriptionStatuses = new Set([
   "trialing",
@@ -221,26 +222,48 @@ Deno.serve(async (request) => {
 
   const { data: recordedEvent, error: eventLookupError } = await admin
     .from("stripe_webhook_events")
-    .select("id, processing_status, attempt_count")
+    .select("id, processing_status, attempt_count, updated_at")
     .eq("stripe_event_id", event.id)
     .maybeSingle();
   if (eventLookupError)
     return Response.json({ error: "Unable to record webhook event" }, { status: 500 });
-  if (recordedEvent?.processing_status === "processed") {
-    return Response.json({ received: true, duplicate: true });
-  }
 
   let eventRecordId = recordedEvent?.id;
   if (recordedEvent) {
-    const { error } = await admin
+    const existingEvent = recordedEvent as WebhookEventRecord;
+    const action = decideWebhookEventAction(existingEvent);
+    if (action === "already_processed") {
+      return Response.json({ received: true, duplicate: true });
+    }
+    if (action === "in_progress") {
+      return Response.json(
+        { error: "Webhook event is already being processed" },
+        { status: 503, headers: { "Retry-After": "30" } },
+      );
+    }
+
+    // Compare-and-set every observed field so only one retry can acquire the
+    // event after a failure or an abandoned processing lease.
+    const { data: claimedEvent, error } = await admin
       .from("stripe_webhook_events")
       .update({
         processing_status: "processing",
-        attempt_count: recordedEvent.attempt_count + 1,
+        attempt_count: existingEvent.attempt_count + 1,
         last_error: null,
       })
-      .eq("id", recordedEvent.id);
+      .eq("id", existingEvent.id)
+      .eq("processing_status", existingEvent.processing_status)
+      .eq("attempt_count", existingEvent.attempt_count)
+      .eq("updated_at", existingEvent.updated_at)
+      .select("id")
+      .maybeSingle();
     if (error) return Response.json({ error: "Unable to retry webhook event" }, { status: 500 });
+    if (!claimedEvent) {
+      return Response.json(
+        { error: "Webhook event retry is already being processed" },
+        { status: 503, headers: { "Retry-After": "30" } },
+      );
+    }
   } else {
     const { data, error } = await admin
       .from("stripe_webhook_events")
@@ -253,7 +276,12 @@ Deno.serve(async (request) => {
       })
       .select("id")
       .single();
-    if (error?.code === "23505") return Response.json({ received: true, duplicate: true });
+    if (error?.code === "23505") {
+      return Response.json(
+        { error: "Webhook event is already being processed" },
+        { status: 503, headers: { "Retry-After": "30" } },
+      );
+    }
     if (error || !data)
       return Response.json({ error: "Unable to record webhook event" }, { status: 500 });
     eventRecordId = data.id;
