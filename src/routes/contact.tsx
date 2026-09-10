@@ -18,6 +18,7 @@ function ContactPage() {
   const [messageState, setMessageState] = useState<"form" | "success" | "fading">("form");
   const [submissionError, setSubmissionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formStartedAt, setFormStartedAt] = useState(() => Date.now());
   const submitMessage = useServerFn(submitSupportContactMessage);
   const supportEmail = import.meta.env["VITE_UPVERO_SUPPORT_EMAIL"]?.trim();
 
@@ -30,6 +31,7 @@ function ContactPage() {
       setName("");
       setEmail("");
       setMessage("");
+      setFormStartedAt(Date.now());
     }, 3000);
 
     return () => {
@@ -50,6 +52,7 @@ function ContactPage() {
           name,
           email,
           message,
+          startedAt: formStartedAt,
           website: String(formData.get("website") ?? ""),
         },
       });

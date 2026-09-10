@@ -1,4 +1,5 @@
 import type { SupportContactMessage } from "./support-contact-message-schema";
+import { isPlausiblePublicFormTiming } from "@/lib/public-form-abuse";
 
 function deny(status: number, error: string): never {
   throw new Response(JSON.stringify({ error }), {
@@ -46,9 +47,19 @@ async function sendSupportContactNotification(
 
 export async function persistSupportContactMessage(data: SupportContactMessage) {
   if (data.website) deny(400, "Unable to send your message.");
+  if (!isPlausiblePublicFormTiming(data.startedAt)) deny(400, "Unable to send your message.");
 
+  const { getPublicFormClientKey } = await import("@/lib/public-form-abuse.server");
   const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
   const client = createSupabaseAdminClient();
+  const clientKey = getPublicFormClientKey("support-contact");
+  const { data: clientWithinQuota, error: clientQuotaError } = await client.rpc(
+    "consume_support_contact_message_quota",
+    { p_target_key: `client:${clientKey}`, p_limit: 5 },
+  );
+  if (clientQuotaError || clientWithinQuota !== true) {
+    deny(429, "The contact form is temporarily busy. Please try again later.");
+  }
   const { data: withinQuota, error: quotaError } = await client.rpc(
     "consume_support_contact_message_quota",
     { p_target_key: "public-contact", p_limit: 30 },

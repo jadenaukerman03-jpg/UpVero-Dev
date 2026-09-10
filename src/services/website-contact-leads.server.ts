@@ -1,4 +1,5 @@
 import type { PublicWebsiteLead } from "./website-contact-lead-schema";
+import { isPlausiblePublicFormTiming } from "@/lib/public-form-abuse";
 
 function deny(status: number, error: string): never {
   throw new Response(JSON.stringify({ error }), {
@@ -15,9 +16,12 @@ function deny(status: number, error: string): never {
  */
 export async function persistWebsiteContactLead(data: PublicWebsiteLead) {
   if (data.website) deny(400, "Unable to submit this inquiry.");
+  if (!isPlausiblePublicFormTiming(data.startedAt)) deny(400, "Unable to submit this inquiry.");
 
+  const { getPublicFormClientKey } = await import("@/lib/public-form-abuse.server");
   const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
   const client = createSupabaseAdminClient();
+  const clientKey = getPublicFormClientKey("website-contact");
   let websiteId: string | null = null;
   let prospectDemoId: string | null = null;
   let quotaTarget: string;
@@ -44,6 +48,14 @@ export async function persistWebsiteContactLead(data: PublicWebsiteLead) {
     if (error || !website) deny(404, "This contact form is unavailable.");
     websiteId = website.id;
     quotaTarget = `website:${website.id}`;
+  }
+
+  const { data: clientWithinQuota, error: clientQuotaError } = await client.rpc(
+    "consume_website_contact_lead_quota",
+    { p_target_key: `client:${clientKey}`, p_limit: 20 },
+  );
+  if (clientQuotaError || clientWithinQuota !== true) {
+    deny(429, "This contact form has received too many requests. Please try again later.");
   }
 
   const { data: withinQuota, error: quotaError } = await client.rpc(

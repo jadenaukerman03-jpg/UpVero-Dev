@@ -26,6 +26,7 @@ export function Contact({
 }) {
   const [sent, setSent] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
+  const [formStartedAt] = useState(() => Date.now());
   const { contact: configuredContact, leadHandling } = useSiteConfig();
   const contact = content ? { ...configuredContact, ...content } : configuredContact;
   const submitLead = useServerFn(submitWebsiteContactLead);
@@ -53,6 +54,7 @@ export function Contact({
           contactMethod: String(values.get("contact") ?? ""),
           service: String(values.get("service") ?? ""),
           notes: String(values.get("notes") ?? ""),
+          startedAt: formStartedAt,
           website: String(values.get("website") ?? ""),
         },
       });
