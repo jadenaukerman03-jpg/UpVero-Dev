@@ -62,8 +62,11 @@ export async function sourceImagesForSite(
     missing.push(requirement.section);
   }
 
-  if (missing.length > 0) {
-    throw new Error(`Pexels could not source required images for: ${missing.join(", ")}.`);
+  // Preserve every valid result. Previously, one unavailable section caused
+  // all successfully selected Pexels assets to be discarded before they could
+  // be persisted, leaving the entire preview image-free.
+  if (selected.length === 0) {
+    throw new Error(`Pexels could not source images for: ${missing.join(", ")}.`);
   }
 
   return {

@@ -81,6 +81,14 @@ function isLegacyGenericFallback(config: SiteConfig) {
   ].some((phrase) => copy.includes(phrase));
 }
 
+function hasSourcedPhotography(config: SiteConfig) {
+  return Boolean(
+    config.assets.hero.src ||
+    config.assets.about.src ||
+    config.assets.gallery?.some((asset) => asset.src),
+  );
+}
+
 export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
   const [fields, setFields] = useState<DraftFields>(initialFields);
@@ -89,6 +97,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   const [savedBusinessId, setSavedBusinessId] = useState<string>();
   const [qualityMode, setQualityMode] = useState<GenerationQualityMode>("studio");
   const [generationFailed, setGenerationFailed] = useState(false);
+  const [imageSourcingFailed, setImageSourcingFailed] = useState(false);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [updatingDirection, setUpdatingDirection] = useState(false);
@@ -144,6 +153,7 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
         ) {
           setPreview(config);
           setGenerationFailed(false);
+          setImageSourcingFailed(!hasSourcedPhotography(config));
         } else {
           setPreview(undefined);
           setGenerationFailed(true);
@@ -206,20 +216,69 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     });
     if (generated instanceof Response) throw new Error(DEMO_UNAVAILABLE_MESSAGE);
     let personalizedConfig = generated as SiteConfig;
-    const withImages = await sourceDraftImages({
-      data: {
-        accessToken: auth.accessToken,
-        businessId,
-        websiteId: draftWebsiteId,
-        lead,
-        style: personalizedConfig.design?.visualDirection ?? "professional",
-      },
-    });
-    if (withImages instanceof Response) throw new Error(DEMO_UNAVAILABLE_MESSAGE);
-    personalizedConfig = withImages as SiteConfig;
     setPreview(personalizedConfig);
     setGenerationFailed(false);
-    setNotice("Your personalized website draft is ready. It has not been published.");
+    setImageSourcingFailed(false);
+    try {
+      const withImages = await sourceDraftImages({
+        data: {
+          accessToken: auth.accessToken,
+          businessId,
+          websiteId: draftWebsiteId,
+          lead,
+          style: personalizedConfig.design?.visualDirection ?? "professional",
+        },
+      });
+      if (withImages instanceof Response) throw new Error("Image sourcing is unavailable.");
+      personalizedConfig = withImages as SiteConfig;
+      setPreview(personalizedConfig);
+      setImageSourcingFailed(false);
+      setNotice("Your personalized website draft is ready. It has not been published.");
+    } catch (error) {
+      console.error("Website copy completed but Pexels image sourcing failed", {
+        message: error instanceof Error ? error.message : "Unknown image sourcing failure",
+      });
+      setImageSourcingFailed(true);
+      setNotice(
+        "Your personalized website copy is ready, but its photos are temporarily unavailable. Please retry shortly.",
+      );
+    }
+  }
+
+  async function retryImageSourcing() {
+    if (
+      !savedBusinessId ||
+      !savedWebsiteId ||
+      !preview ||
+      saving ||
+      auth.status !== "authenticated"
+    )
+      return;
+    setSaving(true);
+    setNotice("Searching Pexels for business-relevant photography…");
+    try {
+      const withImages = await sourceDraftImages({
+        data: {
+          accessToken: auth.accessToken,
+          businessId: savedBusinessId,
+          websiteId: savedWebsiteId,
+          lead: currentLead(),
+          style: preview.design?.visualDirection ?? "professional",
+        },
+      });
+      if (withImages instanceof Response) throw new Error("Image sourcing is unavailable.");
+      setPreview(withImages as SiteConfig);
+      setImageSourcingFailed(false);
+      setNotice("Pexels photography was added to your website draft.");
+    } catch (error) {
+      console.error("Pexels image retry failed", {
+        message: error instanceof Error ? error.message : "Unknown image sourcing failure",
+      });
+      setImageSourcingFailed(true);
+      setNotice("Photos are temporarily unavailable. Please retry shortly.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function retryPersonalization() {
@@ -520,6 +579,17 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
           >
             {saving ? <LoaderCircle className="animate-spin" size={16} /> : <Sparkles size={16} />}
             Retry personalized generation
+          </button>
+        ) : null}
+        {imageSourcingFailed && savedWebsiteId && preview ? (
+          <button
+            type="button"
+            className="uv-button uv-button-primary"
+            disabled={saving}
+            onClick={() => void retryImageSourcing()}
+          >
+            {saving ? <LoaderCircle className="animate-spin" size={16} /> : <Sparkles size={16} />}
+            Retry Pexels images
           </button>
         ) : null}
       </main>
