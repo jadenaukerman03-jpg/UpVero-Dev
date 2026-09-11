@@ -756,6 +756,101 @@ function customerFacingText(spec: Pick<SiteSpecV3, "copy">) {
     .join(" ");
 }
 
+const claimAuditFramingWords = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "area",
+  "areas",
+  "as",
+  "at",
+  "be",
+  "been",
+  "being",
+  "business",
+  "by",
+  "category",
+  "company",
+  "confirmed",
+  "contact",
+  "email",
+  "for",
+  "from",
+  "has",
+  "have",
+  "in",
+  "include",
+  "includes",
+  "including",
+  "industry",
+  "is",
+  "its",
+  "located",
+  "location",
+  "number",
+  "of",
+  "offer",
+  "offers",
+  "on",
+  "operates",
+  "or",
+  "phone",
+  "provide",
+  "provided",
+  "provides",
+  "public",
+  "publicly",
+  "reported",
+  "serve",
+  "serves",
+  "service",
+  "services",
+  "serving",
+  "supplied",
+  "that",
+  "the",
+  "their",
+  "these",
+  "they",
+  "this",
+  "those",
+  "to",
+  "user",
+  "verified",
+  "was",
+  "website",
+  "were",
+  "with",
+]);
+
+function factualTokens(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .match(/[a-z0-9]+/g) ?? []
+  );
+}
+
+/**
+ * Claim-audit entries are short grammatical summaries, while list facts are
+ * stored as comma-delimited values. Validate their material terms against the
+ * complete trusted fact set instead of requiring identical punctuation.
+ */
+export function isGroundedClaimAuditEntry(audit: string, research: ResearchPacket) {
+  const trustedTokens = new Set(
+    research.facts
+      .filter(
+        (fact) => fact.provenance === "user-supplied" || fact.provenance === "publicly-verified",
+      )
+      .flatMap((fact) => factualTokens(fact.value)),
+  );
+  const materialTokens = factualTokens(audit).filter((token) => !claimAuditFramingWords.has(token));
+  return materialTokens.length > 0 && materialTokens.every((token) => trustedTokens.has(token));
+}
+
 function deterministicQualityIssues(lead: Lead, spec: SiteSpecV3) {
   const text = customerFacingText(spec);
   const issues = findBannedGenericPhrases(text.toLowerCase()).map(
@@ -774,9 +869,8 @@ function deterministicQualityIssues(lead: Lead, spec: SiteSpecV3) {
       "The primary hero does not use concrete language from the supplied business offer.",
     );
   }
-  const facts = new Set(spec.research.facts.map((fact) => fact.value.toLowerCase()));
   for (const audit of spec.copy.claimAudit) {
-    if (audit && ![...facts].some((fact) => audit.toLowerCase().includes(fact))) {
+    if (audit && !isGroundedClaimAuditEntry(audit, spec.research)) {
       issues.push(`Unsupported factual claim audit entry: ${audit}`);
     }
   }
@@ -925,7 +1019,7 @@ export async function generateSiteSpecV3(
     schema: copyOnlySchema,
     jsonSchema: copyOnlyJsonSchema,
     onStage: options.onStage,
-    instructions: `${sharedInstructions}\nAct as a senior conversion copywriter. Write one block for every planned section id and no others. Keep every field concise. Make headings concrete, natural, and specific to the customer's desired outcome. Never turn an occupation into an awkward service noun phrase. Avoid generic AI slogans. CTAs should use the exact id of an existing section as a #section-id anchor. Use https:, mailto:, or tel: only when that exact destination is present in verified or user-supplied research facts. claimAudit must contain only factual claims used in the copy, written so each can be matched verbatim to a research fact; use an empty array if the copy contains none.`,
+    instructions: `${sharedInstructions}\nAct as a senior conversion copywriter. Write one block for every planned section id and no others. Keep every field concise. Make headings concrete, natural, and specific to the customer's desired outcome. Never turn an occupation into an awkward service noun phrase. Avoid generic AI slogans. CTAs should use the exact id of an existing section as a #section-id anchor. Use https:, mailto:, or tel: only when that exact destination is present in verified or user-supplied research facts. claimAudit must contain only factual claims used in the copy. It may add grammatical connective words, but every material name, place, service, number, and descriptor must come directly from a verified or user-supplied research fact; use an empty array if the copy contains none.`,
     input: { research, ...strategyArchitecture, ...artComposition },
   });
   copyResult = {
