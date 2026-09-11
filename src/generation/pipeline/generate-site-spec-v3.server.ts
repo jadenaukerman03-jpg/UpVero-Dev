@@ -26,9 +26,11 @@ import {
 } from "@/services/site-generation-quality";
 import {
   providerAttemptLimit,
-  providerFallbackModel,
+  providerFallbackModels,
+  providerRecoveryModel,
   providerRetryDelayMs,
   safeProviderErrorDetails,
+  supportsReasoningConfiguration,
 } from "./provider-retry";
 
 type StageTelemetry = {
@@ -679,26 +681,36 @@ async function runStructuredStage<T>({
   let lastError: unknown;
   let attempts = 0;
   let activeModel = model;
-  const fallbackModel = providerFallbackModel(model, process.env["OPENAI_SITE_FALLBACK_MODEL"]);
+  const fallbackModels = providerFallbackModels(
+    model,
+    process.env["OPENAI_SITE_FALLBACK_MODEL"],
+    process.env["OPENAI_MODEL"],
+  );
   for (let attempt = 1; attempt <= 4; attempt += 1) {
     attempts = attempt;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60_000);
+      const timeout = setTimeout(() => controller.abort(), 90_000);
+      const reasoning = supportsReasoningConfiguration(activeModel)
+        ? {
+            reasoning: {
+              effort: ["copy", "image-selection", "repair"].includes(stage) ? "low" : "medium",
+            },
+          }
+        : {};
+      const verbosity = supportsReasoningConfiguration(activeModel) ? { verbosity: "low" } : {};
       const response = await client.responses
         .create(
           {
             model: activeModel,
             store: false,
-            reasoning: {
-              effort: ["copy", "image-selection", "repair"].includes(stage) ? "low" : "medium",
-            },
+            ...reasoning,
             max_output_tokens:
               stage === "copy" || stage === "repair" ? (attempt === 1 ? 24_000 : 32_000) : 16_000,
             instructions,
             input: JSON.stringify(input),
             text: {
-              verbosity: "low",
+              ...verbosity,
               format: {
                 type: "json_schema",
                 name: `upvero_${stage.replaceAll("-", "_")}`,
@@ -723,12 +735,14 @@ async function runStructuredStage<T>({
       lastError = error;
       const attemptLimit = providerAttemptLimit(error);
       if (attempt >= attemptLimit) break;
-      if (attempt >= 2 && attemptLimit > 2) activeModel = fallbackModel;
+      if (attemptLimit > 2) {
+        activeModel = providerRecoveryModel(model, fallbackModels, attempt);
+      }
       console.warn("Retrying transient website-generation provider failure", {
         stage,
         completedAttempt: attempt,
         nextAttempt: attempt + 1,
-        switchingModel: attempt >= 2 && attemptLimit > 2,
+        switchingModel: attemptLimit > 2 && activeModel !== model,
         ...safeProviderErrorDetails(error),
       });
       await new Promise((resolve) => setTimeout(resolve, providerRetryDelayMs(attempt)));

@@ -4,9 +4,11 @@ import { describe, test } from "node:test";
 import {
   isRetryableProviderError,
   providerAttemptLimit,
-  providerFallbackModel,
+  providerFallbackModels,
+  providerRecoveryModel,
   providerRetryDelayMs,
   safeProviderErrorDetails,
+  supportsReasoningConfiguration,
 } from "./provider-retry";
 
 describe("generation provider retry policy", () => {
@@ -32,9 +34,27 @@ describe("generation provider retry policy", () => {
     assert.deepEqual([1, 2, 3, 8].map(providerRetryDelayMs), [750, 1_500, 3_000, 8_000]);
   });
 
-  test("uses a configured fallback or a compatible default model", () => {
-    assert.equal(providerFallbackModel("gpt-5.4-mini", "gpt-5.4"), "gpt-5.4");
-    assert.equal(providerFallbackModel("gpt-5.4-mini"), "gpt-5.4");
-    assert.equal(providerFallbackModel("custom-model"), "gpt-5.4-mini");
+  test("prefers configured recovery models and removes duplicates", () => {
+    assert.deepEqual(providerFallbackModels("gpt-5.4-mini", "gpt-5.4", "gpt-4.1-mini"), [
+      "gpt-5.4",
+      "gpt-4.1-mini",
+    ]);
+    assert.deepEqual(providerFallbackModels("custom-model", undefined, "gpt-4.1-mini"), [
+      "gpt-4.1-mini",
+      "gpt-5.4-mini",
+    ]);
+  });
+
+  test("moves to a recovery model after the first transient failure", () => {
+    const fallbacks = ["gpt-4.1-mini", "gpt-5.4"];
+    assert.equal(providerRecoveryModel("gpt-5.4-mini", fallbacks, 1), "gpt-4.1-mini");
+    assert.equal(providerRecoveryModel("gpt-5.4-mini", fallbacks, 2), "gpt-5.4");
+    assert.equal(providerRecoveryModel("gpt-5.4-mini", fallbacks, 3), "gpt-5.4");
+  });
+
+  test("only sends reasoning controls to compatible model families", () => {
+    assert.equal(supportsReasoningConfiguration("gpt-5.4-mini"), true);
+    assert.equal(supportsReasoningConfiguration("o3-mini"), true);
+    assert.equal(supportsReasoningConfiguration("gpt-4.1-mini"), false);
   });
 });
