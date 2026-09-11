@@ -57,10 +57,35 @@ export function providerAttemptLimit(error: unknown) {
   return isRetryableProviderError(error) ? 4 : 2;
 }
 
-export function providerFallbackModel(primaryModel: string, configuredFallback?: string) {
-  const configured = configuredFallback?.trim();
-  if (configured && configured !== primaryModel) return configured;
-  return primaryModel === "gpt-5.4-mini" ? "gpt-5.4" : "gpt-5.4-mini";
+export function providerFallbackModels(
+  primaryModel: string,
+  configuredFallback?: string,
+  configuredGeneralModel?: string,
+) {
+  const candidates = [
+    configuredFallback?.trim(),
+    configuredGeneralModel?.trim(),
+    primaryModel === "gpt-5.4-mini" ? "gpt-5.4" : "gpt-5.4-mini",
+    "gpt-4.1-mini",
+  ];
+  return [
+    ...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate))),
+  ].filter((candidate) => candidate !== primaryModel);
+}
+
+export function providerRecoveryModel(
+  primaryModel: string,
+  fallbackModels: string[],
+  completedAttempt: number,
+) {
+  if (!fallbackModels.length) return primaryModel;
+  return fallbackModels[Math.min(completedAttempt - 1, fallbackModels.length - 1)] ?? primaryModel;
+}
+
+/** Older general-purpose models accept Responses structured output but not reasoning controls. */
+export function supportsReasoningConfiguration(model: string) {
+  const normalizedModel = model.trim().toLowerCase();
+  return normalizedModel.startsWith("gpt-5") || /^o[1-9](?:-|$)/.test(normalizedModel);
 }
 
 export function safeProviderErrorDetails(error: unknown) {
