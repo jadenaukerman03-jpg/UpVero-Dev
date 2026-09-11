@@ -4,6 +4,7 @@ import type {
   ImageSelectionResult,
   ImageSourcingRequest,
 } from "@/data/visuals";
+import { validateSiteSpecV3, type SiteSpecV3 } from "@/generation/contracts/site-spec-v3";
 import { createVisualProfile, imageAlt } from "./create-visual-profile";
 import { findPexelsImage } from "./pexels-image-provider.server";
 
@@ -74,5 +75,61 @@ export async function sourceImagesForSite(
     requirements,
     assets: selected,
     unavailableSections: missing,
+  };
+}
+
+function orientationForAspect(aspect: SiteSpecV3["media"]["assets"][number]["aspectRatio"]) {
+  const [width, height] = aspect.split(":").map(Number);
+  return width! >= height! ? ("landscape" as const) : ("portrait" as const);
+}
+
+/** Selects licensed imagery for the variable media plan authored by V3. */
+export async function sourceImagesForSiteSpecV3(spec: SiteSpecV3): Promise<{
+  spec: SiteSpecV3;
+  sourced: number;
+  missing: string[];
+}> {
+  const usedSourceUrls = new Set<string>();
+  const resolved: SiteSpecV3["media"]["assets"] = [];
+  const missing: string[] = [];
+  for (const asset of spec.media.assets.slice(0, 16)) {
+    if (asset.imageUrl && asset.sourceUrl) {
+      usedSourceUrls.add(asset.sourceUrl);
+      resolved.push(asset);
+      continue;
+    }
+    const orientation = orientationForAspect(asset.aspectRatio);
+    const selected = await findPexelsImage(
+      {
+        section: asset.id,
+        dimensions: orientation === "landscape" ? "1536x1024" : "1024x1536",
+        orientation,
+        searchQuery: `${asset.query} no people no faces no hands no text no logos`,
+        searchQueries: [
+          `${asset.purpose} ${asset.query} environment no people`,
+          `${asset.query} objects equipment architecture no people`,
+        ],
+        alt: asset.alt,
+      },
+      usedSourceUrls,
+    );
+    if (!selected?.src || !selected.originalSourceUrl) {
+      missing.push(asset.id);
+      resolved.push(asset);
+      continue;
+    }
+    usedSourceUrls.add(selected.originalSourceUrl);
+    resolved.push({
+      ...asset,
+      imageUrl: selected.src,
+      sourceUrl: selected.originalSourceUrl,
+      provider: "Pexels",
+      attribution: selected.attribution ?? "Photo provided by Pexels",
+    });
+  }
+  return {
+    spec: validateSiteSpecV3({ ...spec, media: { assets: resolved } }),
+    sourced: resolved.filter((asset) => asset.imageUrl).length,
+    missing,
   };
 }

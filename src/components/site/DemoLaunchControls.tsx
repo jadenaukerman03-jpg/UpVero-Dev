@@ -61,6 +61,8 @@ type DemoLaunchControlsProps = {
   launchDisabled?: boolean;
   showActivationGuide?: boolean;
   launchNotice?: string | undefined;
+  generativeMode?: boolean;
+  creativeDirectionLabel?: string | undefined;
 };
 
 export type DemoCustomizableSection = {
@@ -115,18 +117,23 @@ export function DemoLaunchControls({
   launchDisabled = false,
   showActivationGuide = false,
   launchNotice,
+  generativeMode = false,
+  creativeDirectionLabel,
 }: DemoLaunchControlsProps) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [upgradeMessage, setUpgradeMessage] = useState("");
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("direction");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(
+    generativeMode ? "colors" : "direction",
+  );
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiStatus, setAiStatus] = useState("");
   const [refining, setRefining] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState(customizableSections[0]?.id ?? "");
   const [activeImageAreaId, setActiveImageAreaId] = useState(imageAreas[0]?.id ?? "");
   const panelRef = useRef<HTMLDivElement>(null);
-  const selectedDirectionLabel =
-    directions.find((direction) => direction.id === selectedDirection)?.label ?? "Custom";
+  const selectedDirectionLabel = generativeMode
+    ? (creativeDirectionLabel ?? "AI art direction")
+    : (directions.find((direction) => direction.id === selectedDirection)?.label ?? "Custom");
   const selectedThemeLabel =
     selectedTheme.id === "original" ? "Original palette" : selectedTheme.label;
   const selectedFontLabel =
@@ -218,7 +225,9 @@ export function DemoLaunchControls({
     label: string;
     icon: typeof LayoutTemplate;
   }> = [
-    { id: "direction", label: "Direction", icon: LayoutTemplate },
+    ...(generativeMode
+      ? []
+      : [{ id: "direction" as const, label: "Direction", icon: LayoutTemplate }]),
     { id: "colors", label: "Colors", icon: Palette },
     ...(customizableSections.length
       ? [{ id: "sections" as const, label: "Sections", icon: Palette }]

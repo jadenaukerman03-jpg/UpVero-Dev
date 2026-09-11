@@ -25,9 +25,9 @@ export interface VisualProfile {
   visualDirection: string;
 }
 
-export interface ImageAsset {
+export interface ImageAsset<TSection extends string = ImageSection> {
   id: string;
-  section: ImageSection;
+  section: TSection;
   status: ImageSelectionStatus;
   alt: string;
   prompt: string;
@@ -45,8 +45,8 @@ export interface ImageAsset {
   queryOrPromptSummary: string;
 }
 
-export interface ImageRequirement {
-  section: ImageSection;
+export interface ImageRequirement<TSection extends string = ImageSection> {
+  section: TSection;
   dimensions: "1536x1024" | "1024x1536" | "1200x900";
   orientation: "landscape" | "portrait";
   searchQuery: string;
@@ -55,11 +55,11 @@ export interface ImageRequirement {
   alt: string;
 }
 
-export interface ImageSelectionResult {
+export interface ImageSelectionResult<TSection extends string = ImageSection> {
   visualProfile: VisualProfile;
-  assets: ImageAsset[];
-  requirements: ImageRequirement[];
-  unavailableSections: ImageSection[];
+  assets: ImageAsset<TSection>[];
+  requirements: ImageRequirement<TSection>[];
+  unavailableSections: TSection[];
 }
 
 export interface ImageSourcingRequest {

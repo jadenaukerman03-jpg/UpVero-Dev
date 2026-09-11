@@ -37,7 +37,11 @@ function keywords(value: string) {
   );
 }
 
-function scorePhoto(photo: PexelsPhoto, requirement: ImageRequirement, query: string): number {
+function scorePhoto<TSection extends string>(
+  photo: PexelsPhoto,
+  requirement: ImageRequirement<TSection>,
+  query: string,
+): number {
   const aspectRatio = photo.width / photo.height;
   const expectedRatio = requirement.orientation === "landscape" ? 1.5 : 0.8;
   const orientationMatches =
@@ -61,7 +65,10 @@ function scorePhoto(photo: PexelsPhoto, requirement: ImageRequirement, query: st
   );
 }
 
-function preferredPhotoUrl(photo: PexelsPhoto, requirement: ImageRequirement): string | undefined {
+function preferredPhotoUrl<TSection extends string>(
+  photo: PexelsPhoto,
+  requirement: ImageRequirement<TSection>,
+): string | undefined {
   return requirement.orientation === "landscape"
     ? photo.src.large2x || photo.src.large || photo.src.landscape
     : photo.src.large2x || photo.src.large || photo.src.portrait;
@@ -76,10 +83,10 @@ function isPexelsImageUrl(value: string): boolean {
 }
 
 /** Approved, server-only Pexels provider. It remains inactive until PEXELS_API_KEY is configured. */
-export async function findPexelsImage(
-  requirement: ImageRequirement,
+export async function findPexelsImage<TSection extends string>(
+  requirement: ImageRequirement<TSection>,
   usedSourceUrls: Set<string>,
-): Promise<ImageAsset | undefined> {
+): Promise<ImageAsset<TSection> | undefined> {
   const apiKey = process.env["PEXELS_API_KEY"];
   if (!apiKey) {
     throw new PexelsImageProviderError(

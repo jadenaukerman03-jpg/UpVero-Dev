@@ -58,6 +58,31 @@ function applyPexelsImages(config: SiteConfig, imageResult: ImageSelectionResult
   });
 }
 
+function applyV3Images(config: SiteConfig, spec: NonNullable<SiteConfig["siteSpecV3"]>) {
+  const [hero, about, ...gallery] = spec.media.assets;
+  return validateSiteConfig({
+    ...config,
+    siteSpecV3: spec,
+    seo: hero?.imageUrl ? { ...config.seo, socialImage: hero.imageUrl } : config.seo,
+    assets: {
+      hero: hero?.imageUrl
+        ? { src: hero.imageUrl, alt: hero.alt, brief: hero.query }
+        : config.assets.hero,
+      about: about?.imageUrl
+        ? { src: about.imageUrl, alt: about.alt, brief: about.query }
+        : config.assets.about,
+      gallery: gallery.slice(0, 4).map((asset) => ({
+        ...(asset.imageUrl ? { src: asset.imageUrl } : {}),
+        alt: asset.alt,
+        brief: asset.query,
+      })),
+    },
+    assetAttributions: spec.media.assets
+      .filter((asset) => asset.sourceUrl && asset.attribution)
+      .map((asset) => ({ label: asset.attribution!, href: asset.sourceUrl! })),
+  });
+}
+
 const canonicalFields = [
   "businessName",
   "entityType",
@@ -660,23 +685,41 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
         source: "admin-registry-demo",
       });
       const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
-      let config: SiteConfig = await createAiSiteConfig(lead, { qualityMode });
-      const { sourceImagesForSite } = await import("./source-images-for-site.server");
-      const briefs = Object.fromEntries(
-        [
-          ["hero", config.assets.hero.brief ?? config.assets.hero.alt],
-          ["about", config.assets.about.brief ?? config.assets.about.alt],
-          ["showcase-1", config.assets.gallery?.[0]?.brief],
-          ["showcase-2", config.assets.gallery?.[1]?.brief],
-          ["showcase-3", config.assets.gallery?.[2]?.brief],
-        ].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-      );
-      const imageResult = await sourceImagesForSite({
-        lead,
-        style: config.design?.visualDirection ?? "professional",
-        briefs,
+      let config: SiteConfig = await createAiSiteConfig(lead, {
+        qualityMode,
+        ...(candidate.research_result
+          ? {
+              researchProfile: candidate.research_result as Parameters<
+                typeof normalizeResearchProfile
+              >[0],
+            }
+          : {}),
       });
-      config = applyPexelsImages(config, imageResult);
+      let imagesSelected = 0;
+      if (config.siteSpecV3) {
+        const { sourceImagesForSiteSpecV3 } = await import("./source-images-for-site.server");
+        const result = await sourceImagesForSiteSpecV3(config.siteSpecV3);
+        config = applyV3Images(config, result.spec);
+        imagesSelected = result.sourced;
+      } else {
+        const { sourceImagesForSite } = await import("./source-images-for-site.server");
+        const briefs = Object.fromEntries(
+          [
+            ["hero", config.assets.hero.brief ?? config.assets.hero.alt],
+            ["about", config.assets.about.brief ?? config.assets.about.alt],
+            ["showcase-1", config.assets.gallery?.[0]?.brief],
+            ["showcase-2", config.assets.gallery?.[1]?.brief],
+            ["showcase-3", config.assets.gallery?.[2]?.brief],
+          ].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        );
+        const imageResult = await sourceImagesForSite({
+          lead,
+          style: config.design?.visualDirection ?? "professional",
+          briefs,
+        });
+        config = applyPexelsImages(config, imageResult);
+        imagesSelected = imageResult.assets.length;
+      }
       const { data: demo, error: demoError } = await client
         .from("prospect_demos")
         .upsert(
@@ -717,7 +760,7 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
             qualityMode,
             qualityScore: config.generation?.qualityScore,
             actualCostCents: config.generation?.actualCostCents,
-            imagesSelected: imageResult.assets.length,
+            imagesSelected,
           },
         })
         .eq("id", job.id);
@@ -811,22 +854,32 @@ export const refreshProspectDemoImages = createServerFn({ method: "POST" })
       businessDescription: currentConfig.data.about.body,
       source: "admin-registry-image-refresh",
     });
-    const briefs = Object.fromEntries(
-      [
-        ["hero", currentConfig.data.assets.hero.brief ?? currentConfig.data.assets.hero.alt],
-        ["about", currentConfig.data.assets.about.brief ?? currentConfig.data.assets.about.alt],
-        ["showcase-1", currentConfig.data.assets.gallery?.[0]?.brief],
-        ["showcase-2", currentConfig.data.assets.gallery?.[1]?.brief],
-        ["showcase-3", currentConfig.data.assets.gallery?.[2]?.brief],
-      ].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-    );
-    const { sourceImagesForSite } = await import("./source-images-for-site.server");
-    const imageResult = await sourceImagesForSite({
-      lead,
-      style: currentConfig.data.design?.visualDirection ?? "professional",
-      briefs,
-    });
-    const nextConfig = applyPexelsImages(validateSiteConfig(currentConfig.data), imageResult);
+    let nextConfig: SiteConfig;
+    let refreshed: number;
+    if (currentConfig.data.siteSpecV3) {
+      const { sourceImagesForSiteSpecV3 } = await import("./source-images-for-site.server");
+      const result = await sourceImagesForSiteSpecV3(currentConfig.data.siteSpecV3);
+      nextConfig = applyV3Images(validateSiteConfig(currentConfig.data), result.spec);
+      refreshed = result.sourced;
+    } else {
+      const briefs = Object.fromEntries(
+        [
+          ["hero", currentConfig.data.assets.hero.brief ?? currentConfig.data.assets.hero.alt],
+          ["about", currentConfig.data.assets.about.brief ?? currentConfig.data.assets.about.alt],
+          ["showcase-1", currentConfig.data.assets.gallery?.[0]?.brief],
+          ["showcase-2", currentConfig.data.assets.gallery?.[1]?.brief],
+          ["showcase-3", currentConfig.data.assets.gallery?.[2]?.brief],
+        ].filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      );
+      const { sourceImagesForSite } = await import("./source-images-for-site.server");
+      const imageResult = await sourceImagesForSite({
+        lead,
+        style: currentConfig.data.design?.visualDirection ?? "professional",
+        briefs,
+      });
+      nextConfig = applyPexelsImages(validateSiteConfig(currentConfig.data), imageResult);
+      refreshed = imageResult.assets.length;
+    }
     const { data: updated, error: updateError } = await client
       .from("prospect_demos")
       .update({ site_config: nextConfig, generated_at: new Date().toISOString(), last_error: null })
@@ -835,7 +888,7 @@ export const refreshProspectDemoImages = createServerFn({ method: "POST" })
       .select("id")
       .maybeSingle();
     if (updateError || !updated) throw new Error("Unable to save refreshed Pexels images.");
-    return { refreshed: imageResult.assets.length };
+    return { refreshed };
   });
 
 /** Public capability endpoint: only a hard-to-guess private preview token is accepted. */

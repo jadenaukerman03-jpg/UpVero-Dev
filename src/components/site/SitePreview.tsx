@@ -35,6 +35,7 @@ import { Testimonials } from "./Testimonials";
 import { DemoLaunchControls } from "./DemoLaunchControls";
 import type { DemoCustomizableSection, DemoImageArea, DemoImageOption } from "./DemoLaunchControls";
 import { CompositionalSiteRenderer } from "./CompositionalSiteRenderer";
+import { GenerativeSiteV3Renderer } from "./GenerativeSiteV3Renderer";
 import { VisualDirectionSite } from "./VisualDirectionSite";
 import type { WebsiteLeadCaptureTarget } from "./Contact";
 
@@ -143,6 +144,20 @@ export function SitePreview({
     accent: generatedAccentOverride ?? selectedTheme.swatches[2],
     accentText: selectedTheme.swatches[0],
   });
+  const v3PaletteOverride =
+    config.siteSpecV3 && selectedTheme.id !== "original"
+      ? repairGeneratedPalette({
+          background: selectedTheme.swatches[0],
+          surface: selectedTheme.swatches[0],
+          surfaceText: selectedTheme.swatches[1],
+          text: selectedTheme.swatches[1],
+          mutedText: selectedTheme.swatches[1],
+          contrast: selectedTheme.swatches[1],
+          contrastText: selectedTheme.swatches[0],
+          accent: selectedTheme.swatches[2],
+          accentText: selectedTheme.swatches[0],
+        })
+      : undefined;
 
   useEffect(() => {
     const root = previewRootRef.current;
@@ -264,6 +279,38 @@ export function SitePreview({
         } as CSSProperties)
       : undefined;
   const customizableSections = useMemo<DemoCustomizableSection[]>(() => {
+    if (config.siteSpecV3) {
+      const tokens = createSemanticThemeTokens(config.siteSpecV3.designSystem.palette);
+      const toneDefaults = (tone: "base" | "surface" | "contrast" | "accent") =>
+        tone === "contrast"
+          ? {
+              backgroundColor: tokens.contrastBackground,
+              textColor: tokens.contrastPrimaryText,
+            }
+          : tone === "accent"
+            ? { backgroundColor: tokens.accentBackground, textColor: tokens.accentPrimaryText }
+            : tone === "surface"
+              ? {
+                  backgroundColor: tokens.surfaceBackground,
+                  textColor: config.siteSpecV3!.designSystem.palette.surfaceText,
+                }
+              : { backgroundColor: tokens.pageBackground, textColor: tokens.primaryText };
+      return config.siteSpecV3.architecture.pages
+        .flatMap((page) => page.sectionPlan)
+        .map((section) => {
+          const layout = config
+            .siteSpecV3!.composition.pages.flatMap((page) => page.sections)
+            .find((candidate) => candidate.sectionId === section.id);
+          return {
+            id: section.id,
+            label:
+              config.siteSpecV3!.copy.blocks.find((block) => block.id === section.id)?.heading ??
+              section.job,
+            ...toneDefaults(layout?.tone ?? "base"),
+            ...presentationOverrides.sectionStyles[section.id],
+          };
+        });
+    }
     if (!selectedGeneratedVariant) return [];
     const palette = repairGeneratedPalette(selectedGeneratedVariant.palette);
     const defaultsForTone = (tone: "base" | "contrast" | "accent") =>
@@ -292,7 +339,7 @@ export function SitePreview({
       },
     ];
     return entries.map((entry) => ({ ...entry, ...presentationOverrides.sectionStyles[entry.id] }));
-  }, [presentationOverrides.sectionStyles, selectedGeneratedVariant]);
+  }, [config.siteSpecV3, presentationOverrides.sectionStyles, selectedGeneratedVariant]);
 
   const imageOptions = useMemo<DemoImageOption[]>(() => {
     const options: Array<{
@@ -369,7 +416,22 @@ export function SitePreview({
         className={`${showDemoLaunchControls ? `demo-direction-${selectedDirection.id} pb-24 sm:pb-28 ` : ""}min-h-screen bg-bone font-sans text-ink antialiased`}
         style={themeStyle}
       >
-        {selectedGeneratedVariant ? (
+        {config.siteSpecV3 ? (
+          <GenerativeSiteV3Renderer
+            config={config}
+            {...(leadCaptureTarget ? { leadCaptureTarget } : {})}
+            {...(v3PaletteOverride ? { paletteOverride: v3PaletteOverride } : {})}
+            {...(fontId !== "original"
+              ? {
+                  fontOverride: {
+                    display: selectedFont.variables["--preview-font-display"],
+                    body: selectedFont.variables["--preview-font-sans"],
+                  },
+                }
+              : {})}
+            presentationOverrides={presentationOverrides}
+          />
+        ) : selectedGeneratedVariant ? (
           <CompositionalSiteRenderer
             variant={selectedGeneratedVariant}
             leadCaptureTarget={leadCaptureTarget}
@@ -436,6 +498,8 @@ export function SitePreview({
             launchDisabled={demoLaunchDisabled}
             showActivationGuide={showActivationGuide}
             launchNotice={demoLaunchNotice}
+            generativeMode={Boolean(config.siteSpecV3)}
+            creativeDirectionLabel={config.siteSpecV3?.designSystem.conceptName}
           />
         )}
       </div>

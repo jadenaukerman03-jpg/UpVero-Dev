@@ -86,6 +86,101 @@ async function completeGenerationRun(
     .eq("id", runId);
   if (updateError)
     console.error("Unable to complete website generation ledger entry", { code: updateError.code });
+
+  if (!error && config?.siteSpecV3) {
+    const client = createSupabaseAdminClient();
+    const { data: run } = await client
+      .from("website_generation_runs")
+      .select("owner_id")
+      .eq("id", runId)
+      .maybeSingle();
+    const stages = config.generation?.stages ?? [];
+    const stageRows = stages.map((stage, index) => ({
+      run_id: runId,
+      stage_name: stage.name,
+      attempt: Math.max(1, Math.min(4, stage.attempts)),
+      status: stage.status,
+      input_tokens: 0,
+      output_tokens: 0,
+      estimated_cost_cents: 0,
+      error_summary: stage.error ?? null,
+      started_at: new Date(Date.now() - stage.durationMs - index).toISOString(),
+      completed_at: new Date().toISOString(),
+    }));
+    if (stageRows.length) {
+      const { error: stageError } = await client
+        .from("website_generation_stages")
+        .upsert(stageRows, { onConflict: "run_id,stage_name,attempt" });
+      if (stageError)
+        console.error("Unable to persist website generation stages", { code: stageError.code });
+    }
+    const content = config.siteSpecV3;
+    const contentHash = content.originality.fingerprint;
+    const artifacts = [
+      { artifact_type: "research-packet", content: content.research },
+      { artifact_type: "strategy", content: content.strategy },
+      { artifact_type: "architecture", content: content.architecture },
+      { artifact_type: "design-system", content: content.designSystem },
+      { artifact_type: "copy-deck", content: content.copy },
+      { artifact_type: "composition", content: content.composition },
+      { artifact_type: "media-plan", content: content.media },
+      { artifact_type: "site-spec", content },
+    ].map((artifact) => ({
+      run_id: runId,
+      artifact_type: artifact.artifact_type,
+      schema_version: 3,
+      content: artifact.content,
+      content_hash: `${contentHash}:${artifact.artifact_type}`,
+    }));
+    const { error: artifactError } = await client
+      .from("website_generation_artifacts")
+      .insert(artifacts);
+    if (artifactError)
+      console.error("Unable to persist website generation artifact", { code: artifactError.code });
+    if (run?.owner_id) {
+      const { error: fingerprintError } = await client
+        .from("website_generation_fingerprints")
+        .upsert(
+          {
+            run_id: runId,
+            owner_id: run.owner_id,
+            fingerprint: contentHash,
+            characteristics: {
+              paths: content.architecture.pages.map((page) => page.path),
+              sectionOrders: content.architecture.pages.map((page) =>
+                page.sectionPlan.map((section) => section.purpose),
+              ),
+              layoutGrammar: content.composition.pages.flatMap((page) =>
+                page.sections.map((section) => ({
+                  columns: section.columns,
+                  contentSpan: section.contentSpan,
+                  mediaSpan: section.mediaSpan,
+                  align: section.align,
+                  itemTreatment: section.itemTreatment,
+                  mediaPlacement: section.mediaPlacement,
+                  tone: section.tone,
+                })),
+              ),
+              typography: [
+                content.designSystem.typography.displayFamily,
+                content.designSystem.typography.bodyFamily,
+              ],
+              surface: [
+                content.designSystem.surfaces.radiusPx,
+                content.designSystem.surfaces.shadow,
+                content.designSystem.imagery.cornerTreatment,
+              ],
+            },
+            quality_score: content.quality.score,
+          },
+          { onConflict: "run_id" },
+        );
+      if (fingerprintError)
+        console.error("Unable to persist website originality fingerprint", {
+          code: fingerprintError.code,
+        });
+    }
+  }
 }
 
 async function validateRequest(data: unknown) {
@@ -97,15 +192,37 @@ async function validateRequest(data: unknown) {
   });
 }
 
+async function recentGenerationDesigns(ownerId: string) {
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+  const { data, error } = await createSupabaseAdminClient()
+    .from("website_generation_fingerprints")
+    .select("fingerprint, characteristics")
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) return [];
+  return (data ?? []).flatMap((entry) =>
+    typeof entry.fingerprint === "string"
+      ? [{ fingerprint: entry.fingerprint, characteristics: entry.characteristics }]
+      : [],
+  );
+}
+
 /** Server RPC boundary; OpenAI credentials and implementation stay server-side. */
 export const generateSiteConfigWithAI = createServerFn({ method: "POST" })
   .validator(validateRequest)
   .handler(async ({ data }) => {
     const { authorizeProviderOperation } =
       await import("./provider-operation-authorization.server");
-    await authorizeProviderOperation(data, { operation: "ai_generation", adminOnly: true });
+    const { user } = await authorizeProviderOperation(data, {
+      operation: "ai_generation",
+      adminOnly: true,
+    });
     const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
-    return createAiSiteConfig(data.lead, { qualityMode: data.qualityMode });
+    return createAiSiteConfig(data.lead, {
+      qualityMode: data.qualityMode,
+      recentDesigns: await recentGenerationDesigns(user.id),
+    });
   });
 
 /**
@@ -144,7 +261,10 @@ export const generateOwnedDraftSiteConfigWithAI = createServerFn({ method: "POST
     const { createAiSiteConfig } = await import("./generate-site-config-with-ai.server");
     let generatedConfig;
     try {
-      generatedConfig = await createAiSiteConfig(data.lead, { qualityMode: data.qualityMode });
+      generatedConfig = await createAiSiteConfig(data.lead, {
+        qualityMode: data.qualityMode,
+        recentDesigns: await recentGenerationDesigns(user.id),
+      });
     } catch (error) {
       await completeGenerationRun(runId, undefined, error);
       throw error;
@@ -208,6 +328,7 @@ export const refineOwnedDraftSiteConfigWithAI = createServerFn({ method: "POST" 
       revised = await createAiSiteConfig(data.lead, {
         qualityMode: data.qualityMode,
         currentConfig,
+        recentDesigns: await recentGenerationDesigns(user.id),
         revisionInstruction: data.instruction,
         ...(data.renderAudit ? { renderAudit: data.renderAudit } : {}),
       });

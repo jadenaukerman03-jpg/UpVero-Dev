@@ -63,6 +63,44 @@ export const sourceOwnedDraftImages = createServerFn({ method: "POST" })
     if (websiteError || !website) throw new Error("This website draft is unavailable.");
     const currentConfig = siteConfigSchema.safeParse(website.site_config);
     if (!currentConfig.success) throw new Error("This website draft has an invalid configuration.");
+    if (currentConfig.data.siteSpecV3) {
+      const { sourceImagesForSiteSpecV3 } = await import("./source-images-for-site.server");
+      const result = await sourceImagesForSiteSpecV3(currentConfig.data.siteSpecV3);
+      if (result.sourced === 0) throw new Error("Pexels could not source any suitable images.");
+      const [hero, about, ...gallery] = result.spec.media.assets;
+      const nextConfig = siteConfigSchema.parse({
+        ...currentConfig.data,
+        siteSpecV3: result.spec,
+        seo: hero?.imageUrl
+          ? { ...currentConfig.data.seo, socialImage: hero.imageUrl }
+          : currentConfig.data.seo,
+        assets: {
+          hero: hero?.imageUrl
+            ? { src: hero.imageUrl, alt: hero.alt, brief: hero.query }
+            : currentConfig.data.assets.hero,
+          about: about?.imageUrl
+            ? { src: about.imageUrl, alt: about.alt, brief: about.query }
+            : currentConfig.data.assets.about,
+          gallery: gallery.slice(0, 4).map((asset) => ({
+            ...(asset.imageUrl ? { src: asset.imageUrl } : {}),
+            alt: asset.alt,
+            brief: asset.query,
+          })),
+        },
+        assetAttributions: result.spec.media.assets
+          .filter((asset) => asset.sourceUrl && asset.attribution)
+          .map((asset) => ({ label: asset.attribution!, href: asset.sourceUrl! })),
+      });
+      const { data: updated, error: updateError } = await client
+        .from("websites")
+        .update({ site_config: nextConfig })
+        .eq("id", data.websiteId)
+        .eq("owner_id", user.id)
+        .select("site_config")
+        .maybeSingle();
+      if (updateError || !updated) throw new Error("Unable to save website images.");
+      return updated.site_config;
+    }
     const galleryBriefs = currentConfig.data.assets.gallery ?? [];
     const briefs: Partial<Record<ImageSection, string>> = {
       hero: currentConfig.data.assets.hero.brief ?? currentConfig.data.assets.hero.alt,

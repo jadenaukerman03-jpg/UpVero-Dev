@@ -8,6 +8,11 @@ import {
   type DemoPresentationOverrides,
   type GenerativeSiteBundle,
 } from "./generative-site";
+import {
+  siteSpecV3Schema,
+  validateSiteSpecV3,
+  type SiteSpecV3,
+} from "@/generation/contracts/site-spec-v3";
 
 export type Cta = { label: string; href: string };
 
@@ -78,6 +83,13 @@ export type SiteConfig = {
     revision?: number;
     visualAuditCompletedAt?: string;
     variationKey?: string;
+    stages?: Array<{
+      name: string;
+      status: "completed" | "failed";
+      durationMs: number;
+      attempts: number;
+      error?: string;
+    }>;
   };
   design?: {
     visualDirection: "professional" | "modern" | "luxury" | "friendly" | "minimal";
@@ -92,6 +104,8 @@ export type SiteConfig = {
    * used by publishing, contact capture, and older saved websites.
    */
   generatedExperience?: GenerativeSiteBundle;
+  /** Template-free, strategy-first website specification used by all new generations. */
+  siteSpecV3?: SiteSpecV3;
   /** Safe presentation choices made inside a private preview. */
   presentationOverrides?: DemoPresentationOverrides;
   brand: {
@@ -224,6 +238,18 @@ export const siteConfigSchema = z.object({
       revision: z.number().int().nonnegative().optional(),
       visualAuditCompletedAt: z.string().datetime().optional(),
       variationKey: z.string().min(1).max(32).optional(),
+      stages: z
+        .array(
+          z.object({
+            name: z.string().min(1).max(80),
+            status: z.enum(["completed", "failed"]),
+            durationMs: z.number().int().nonnegative(),
+            attempts: z.number().int().min(1).max(4),
+            error: z.string().max(500).optional(),
+          }),
+        )
+        .max(30)
+        .optional(),
     })
     .optional(),
   design: z
@@ -239,6 +265,7 @@ export const siteConfigSchema = z.object({
     })
     .optional(),
   generatedExperience: generativeSiteBundleSchema.optional(),
+  siteSpecV3: siteSpecV3Schema.optional(),
   presentationOverrides: demoPresentationOverridesSchema.optional(),
   brand: z.object({
     name: z.string().min(1),
@@ -358,12 +385,13 @@ export const siteConfigSchema = z.object({
 
 export function validateSiteConfig(config: unknown): SiteConfig {
   const parsed = siteConfigSchema.parse(config) as SiteConfig;
-  return parsed.generatedExperience
-    ? {
-        ...parsed,
-        generatedExperience: enforceGenerativeContrast(parsed.generatedExperience),
-      }
-    : parsed;
+  return {
+    ...parsed,
+    ...(parsed.generatedExperience
+      ? { generatedExperience: enforceGenerativeContrast(parsed.generatedExperience) }
+      : {}),
+    ...(parsed.siteSpecV3 ? { siteSpecV3: validateSiteSpecV3(parsed.siteSpecV3) } : {}),
+  };
 }
 
 const vantageBrand: SiteConfig["brand"] = {
