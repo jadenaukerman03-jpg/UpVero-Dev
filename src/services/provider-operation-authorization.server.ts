@@ -26,6 +26,10 @@ type AuthorizationOptions = {
   adminOnly?: boolean;
 };
 
+export function shouldConsumeProviderQuota(options: Pick<AuthorizationOptions, "adminOnly">) {
+  return options.adminOnly !== true;
+}
+
 /**
  * The sole authorization boundary for requests that may reach OpenAI or Pexels.
  * It completes identity, ownership, entitlement, and quota checks before a
@@ -90,6 +94,12 @@ export async function authorizeProviderOperation(
     );
     if (!entitled) deny(403, "An active UpVero plan is required for this operation.");
   }
+
+  // Administrator operations are deliberate owner actions and may include
+  // large approved registry batches. They retain authentication, the database
+  // admin allowlist, and resource-ownership checks above, but are not subjected
+  // to the customer abuse throttle.
+  if (!shouldConsumeProviderQuota(options)) return { client, user };
 
   // This uses the server-only credential after all user-scoped checks above.
   // The quota RPC is intentionally not callable from the browser.
