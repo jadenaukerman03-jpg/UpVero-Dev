@@ -517,18 +517,6 @@ export const processQueuedRegistryResearch = createServerFn({ method: "POST" })
         .update({ review_status: "researching", last_research_error: null })
         .eq("id", candidate.id);
       try {
-        const { data: withinDailyBudget, error: budgetError } = await client.rpc(
-          "consume_admin_provider_daily_budget",
-          { p_owner_id: user.id, p_operation: "business_research", p_daily_limit: 50 },
-        );
-        if (budgetError || withinDailyBudget !== true)
-          throw new Error("Daily research budget reached. Try again tomorrow.");
-        const { data: withinQuota, error: quotaError } = await client.rpc(
-          "consume_provider_operation_quota",
-          { p_owner_id: user.id, p_operation: "business_research" },
-        );
-        if (quotaError || withinQuota !== true)
-          throw new Error("Research quota reached. Try again later.");
         const { researchBusinessFromQuery } = await import("./research-business.server");
         const result = await researchBusinessFromQuery({
           businessName: business.name,
@@ -658,18 +646,6 @@ export const processNextProspectDemo = createServerFn({ method: "POST" })
       registration_date: string | null;
     };
     try {
-      const { data: dailyBudget, error: budgetError } = await client.rpc(
-        "consume_admin_provider_daily_budget",
-        { p_owner_id: user.id, p_operation: "ai_generation", p_daily_limit: 25 },
-      );
-      if (budgetError || dailyBudget !== true)
-        throw new Error("Daily demo-generation budget reached. Try again tomorrow.");
-      const { data: hourlyQuota, error: quotaError } = await client.rpc(
-        "consume_provider_operation_quota",
-        { p_owner_id: user.id, p_operation: "ai_generation" },
-      );
-      if (quotaError || hourlyQuota !== true)
-        throw new Error("Demo-generation quota reached. Try again later.");
       const normalized = candidate.research_result
         ? normalizeResearchProfile(
             candidate.research_result as Parameters<typeof normalizeResearchProfile>[0],
@@ -817,19 +793,6 @@ export const refreshProspectDemoImages = createServerFn({ method: "POST" })
     if (demoError || !demo) respond(404, "This private demo is unavailable.");
     const currentConfig = siteConfigSchema.safeParse(demo.site_config);
     if (!currentConfig.success) throw new Error("This private demo has an invalid configuration.");
-
-    const { data: dailyBudget, error: budgetError } = await client.rpc(
-      "consume_admin_provider_daily_budget",
-      { p_owner_id: user.id, p_operation: "image_sourcing", p_daily_limit: 100 },
-    );
-    if (budgetError || dailyBudget !== true)
-      respond(429, "Daily image-sourcing budget reached. Try again tomorrow.");
-    const { data: hourlyQuota, error: quotaError } = await client.rpc(
-      "consume_provider_operation_quota",
-      { p_owner_id: user.id, p_operation: "image_sourcing" },
-    );
-    if (quotaError || hourlyQuota !== true)
-      respond(429, "Image-sourcing quota reached. Try again later.");
 
     const business = candidate.registry_businesses as unknown as {
       name: string;
