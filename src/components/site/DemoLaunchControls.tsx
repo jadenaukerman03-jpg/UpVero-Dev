@@ -319,44 +319,53 @@ export function DemoLaunchControls({
 
         <div className="editor-settings-scroll max-h-[min(19rem,calc(100svh-18rem))] min-h-36 overflow-y-auto px-4 py-4 sm:px-5">
           {settingsSection === "direction" && (
-            <div
-              className="grid grid-cols-2 gap-2"
-              role="radiogroup"
-              aria-label="Website visual direction"
-            >
-              {directions.map((direction) => {
-                const selected = direction.id === selectedDirection;
-                const lockedBy = lockLabel("visual-direction", direction.id);
-                return (
-                  <button
-                    key={direction.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() =>
-                      selectOption("visual-direction", direction.id, () =>
-                        onSelectDirection(direction.id),
-                      )
-                    }
-                    className={`relative min-h-20 rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay/15 text-bone" : "border-bone/10 bg-bone/5 text-bone/75 hover:border-bone/25 hover:bg-bone/10"}`}
-                  >
-                    <span className="block text-xs font-semibold">{direction.label}</span>
-                    <span className="mt-1 block text-[11px] leading-snug text-bone/45">
-                      {direction.description}
-                    </span>
-                    {direction.id === recommendedDirection && (
-                      <span className="mt-2 inline-block text-[9px] font-bold tracking-wide text-clay uppercase">
-                        Recommended
+            <div>
+              <p className="mb-3 text-[11px] leading-relaxed text-bone/55">
+                Change the complete visual treatment after generation. Your business content stays
+                intact.
+              </p>
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-label="Website visual direction"
+              >
+                {directions.map((direction) => {
+                  const selected = direction.id === selectedDirection;
+                  const lockedBy = lockLabel("visual-direction", direction.id);
+                  return (
+                    <button
+                      key={direction.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() =>
+                        selectOption("visual-direction", direction.id, () =>
+                          onSelectDirection(direction.id),
+                        )
+                      }
+                      className={`relative min-h-20 rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay ${selected ? "border-clay bg-clay/15 text-bone" : "border-bone/10 bg-bone/5 text-bone/75 hover:border-bone/25 hover:bg-bone/10"}`}
+                    >
+                      <span className="block text-xs font-semibold">{direction.label}</span>
+                      <span className="mt-1 block text-[11px] leading-snug text-bone/45">
+                        {direction.description}
                       </span>
-                    )}
-                    {lockedBy && (
-                      <span className="absolute top-2 right-2" aria-label={`${lockedBy} required`}>
-                        <Lock className="size-3 text-clay" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                      {direction.id === recommendedDirection && (
+                        <span className="mt-2 inline-block text-[9px] font-bold tracking-wide text-clay uppercase">
+                          Recommended
+                        </span>
+                      )}
+                      {lockedBy && (
+                        <span
+                          className="absolute top-2 right-2"
+                          aria-label={`${lockedBy} required`}
+                        >
+                          <Lock className="size-3 text-clay" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

@@ -430,6 +430,7 @@ export function SitePreview({
                 }
               : {})}
             presentationOverrides={presentationOverrides}
+            visualDirection={directionId}
           />
         ) : selectedGeneratedVariant ? (
           <CompositionalSiteRenderer

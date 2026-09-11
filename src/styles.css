@@ -223,7 +223,7 @@
 .v3-section h3 {
   margin: 0;
   font-family: var(--v3-heading);
-  font-weight: 650;
+  font-weight: var(--v3-heading-weight);
   letter-spacing: var(--v3-letter-spacing);
   text-wrap: balance;
 }
@@ -233,7 +233,7 @@
   max-width: 15ch;
   font-family: var(--v3-display);
   font-size: clamp(3.1rem, 8vw, 8.8rem);
-  font-weight: 700;
+  font-weight: var(--v3-display-weight);
   line-height: 0.92;
 }
 
@@ -415,6 +415,67 @@
 .v3-footer span,
 .v3-footer small {
   color: var(--v3-muted);
+}
+
+.v3-site[data-visual-direction="modern"] .v3-header {
+  border-bottom-width: 2px;
+  backdrop-filter: blur(24px) saturate(1.25);
+}
+
+.v3-site[data-visual-direction="modern"] .v3-purpose-hero .v3-section-grid {
+  align-items: end;
+}
+
+.v3-site[data-visual-direction="modern"] .v3-items article,
+.v3-site[data-visual-direction="modern"] .v3-items details {
+  border-left: 3px solid var(--v3-accent);
+}
+
+.v3-site[data-visual-direction="luxury"] .v3-header nav button,
+.v3-site[data-visual-direction="luxury"] .v3-eyebrow {
+  letter-spacing: 0.2em;
+}
+
+.v3-site[data-visual-direction="luxury"] .v3-purpose-hero .v3-section-copy {
+  max-width: 62rem;
+}
+
+.v3-site[data-visual-direction="luxury"] .v3-media {
+  outline: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  outline-offset: -0.75rem;
+}
+
+.v3-site[data-visual-direction="friendly"] .v3-button {
+  padding-inline: 1.35rem;
+}
+
+.v3-site[data-visual-direction="friendly"] .v3-brand span {
+  border-radius: 50%;
+}
+
+.v3-site[data-visual-direction="friendly"] .v3-items article,
+.v3-site[data-visual-direction="friendly"] .v3-items details {
+  border-color: color-mix(in srgb, currentColor 32%, transparent);
+}
+
+.v3-site[data-visual-direction="minimal"] .v3-header {
+  position: relative;
+  backdrop-filter: none;
+}
+
+.v3-site[data-visual-direction="minimal"] .v3-button {
+  border-color: currentColor;
+  box-shadow: none;
+}
+
+.v3-site[data-visual-direction="minimal"] .v3-items article,
+.v3-site[data-visual-direction="minimal"] .v3-items details,
+.v3-site[data-visual-direction="minimal"] .v3-media {
+  box-shadow: none;
+}
+
+.v3-site[data-visual-direction="professional"] .v3-section-grid {
+  align-items: center;
 }
 
 @media (max-width: 760px) {
