@@ -24,6 +24,12 @@ import {
   findBannedGenericPhrases,
   hasConcreteOfferLanguage,
 } from "@/services/site-generation-quality";
+import {
+  providerAttemptLimit,
+  providerFallbackModel,
+  providerRetryDelayMs,
+  safeProviderErrorDetails,
+} from "./provider-retry";
 
 type StageTelemetry = {
   inputTokens: number;
@@ -671,14 +677,18 @@ async function runStructuredStage<T>({
   await onStage?.(stage);
   const startedAt = Date.now();
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  let attempts = 0;
+  let activeModel = model;
+  const fallbackModel = providerFallbackModel(model, process.env["OPENAI_SITE_FALLBACK_MODEL"]);
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    attempts = attempt;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 90_000);
+      const timeout = setTimeout(() => controller.abort(), 60_000);
       const response = await client.responses
         .create(
           {
-            model,
+            model: activeModel,
             store: false,
             reasoning: {
               effort: ["copy", "image-selection", "repair"].includes(stage) ? "low" : "medium",
@@ -700,7 +710,7 @@ async function runStructuredStage<T>({
           { signal: controller.signal },
         )
         .finally(() => clearTimeout(timeout));
-      recordUsage(telemetry, model, response);
+      recordUsage(telemetry, activeModel, response);
       const parsed = parseStructuredStageResponse(response, schema, stage);
       telemetry.stages.push({
         name: stage,
@@ -711,7 +721,17 @@ async function runStructuredStage<T>({
       return parsed;
     } catch (error) {
       lastError = error;
-      if (attempt < 2) continue;
+      const attemptLimit = providerAttemptLimit(error);
+      if (attempt >= attemptLimit) break;
+      if (attempt >= 2 && attemptLimit > 2) activeModel = fallbackModel;
+      console.warn("Retrying transient website-generation provider failure", {
+        stage,
+        completedAttempt: attempt,
+        nextAttempt: attempt + 1,
+        switchingModel: attempt >= 2 && attemptLimit > 2,
+        ...safeProviderErrorDetails(error),
+      });
+      await new Promise((resolve) => setTimeout(resolve, providerRetryDelayMs(attempt)));
     }
   }
   const message =
@@ -720,7 +740,7 @@ async function runStructuredStage<T>({
     name: stage,
     status: "failed",
     durationMs: Date.now() - startedAt,
-    attempts: 2,
+    attempts,
     error: message,
   });
   throw new Error(`Website generation failed during ${stage}: ${message}`);
