@@ -472,6 +472,23 @@ const copyMediaSchema = z.object({
   media: mediaPlanSchema,
   rationale: designRationaleSchema,
 });
+const copyOnlySchema = copyMediaSchema.pick({ copy: true });
+const mediaRationaleSchema = copyMediaSchema.pick({ media: true, rationale: true });
+const copyOnlyJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["copy"],
+  properties: { copy: copyMediaJsonSchema.properties.copy },
+} as const;
+const mediaRationaleJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["media", "rationale"],
+  properties: {
+    media: copyMediaJsonSchema.properties.media,
+    rationale: copyMediaJsonSchema.properties.rationale,
+  },
+} as const;
 
 function modelFor(mode: GenerationQualityMode) {
   return (
@@ -500,6 +517,36 @@ function recordUsage(
   telemetry.models.add(model);
 }
 
+type StructuredStageResponse = {
+  output_text?: string;
+  status?: string;
+  incomplete_details?: { reason?: string } | null;
+  error?: { code?: string; message?: string } | null;
+  usage?: { input_tokens?: number; output_tokens?: number } | null;
+};
+
+export function parseStructuredStageResponse<T>(
+  response: StructuredStageResponse,
+  schema: z.ZodType<T>,
+  stage: GenerationStageName,
+) {
+  if (response.status && response.status !== "completed") {
+    const reason = response.incomplete_details?.reason || response.error?.code || response.status;
+    throw new Error(`OpenAI returned an incomplete ${stage} response (${reason}).`);
+  }
+  const output = response.output_text?.trim();
+  if (!output) throw new Error(`OpenAI returned an empty ${stage} response.`);
+  let json: unknown;
+  try {
+    json = JSON.parse(output);
+  } catch {
+    throw new Error(
+      `OpenAI returned malformed structured JSON for ${stage} (${output.length} characters).`,
+    );
+  }
+  return schema.parse(json);
+}
+
 async function runStructuredStage<T>({
   client,
   telemetry,
@@ -516,10 +563,7 @@ async function runStructuredStage<T>({
       create: (
         body: object,
         options?: { signal?: AbortSignal },
-      ) => Promise<{
-        output_text?: string;
-        usage?: { input_tokens?: number; output_tokens?: number } | null;
-      }>;
+      ) => Promise<StructuredStageResponse>;
     };
   };
   telemetry: StageTelemetry;
@@ -543,11 +587,15 @@ async function runStructuredStage<T>({
           {
             model,
             store: false,
-            reasoning: { effort: "medium" },
-            max_output_tokens: 12_000,
+            reasoning: {
+              effort: ["copy", "image-selection", "repair"].includes(stage) ? "low" : "medium",
+            },
+            max_output_tokens:
+              stage === "copy" || stage === "repair" ? (attempt === 1 ? 24_000 : 32_000) : 16_000,
             instructions,
             input: JSON.stringify(input),
             text: {
+              verbosity: "low",
               format: {
                 type: "json_schema",
                 name: `upvero_${stage.replaceAll("-", "_")}`,
@@ -560,7 +608,7 @@ async function runStructuredStage<T>({
         )
         .finally(() => clearTimeout(timeout));
       recordUsage(telemetry, model, response);
-      const parsed = schema.parse(JSON.parse(response.output_text || ""));
+      const parsed = parseStructuredStageResponse(response, schema, stage);
       telemetry.stages.push({
         name: stage,
         status: "completed",
@@ -762,24 +810,29 @@ export async function generateSiteSpecV3(
     attempts: 1,
   });
 
-  let copyMedia = await runStructuredStage({
+  let copyResult = await runStructuredStage({
     client,
     telemetry,
     model,
     stage: "copy",
-    schema: copyMediaSchema,
-    jsonSchema: copyMediaJsonSchema,
+    schema: copyOnlySchema,
+    jsonSchema: copyOnlyJsonSchema,
     onStage: options.onStage,
-    instructions: `${sharedInstructions}\nAct as a senior copywriter and image editor. Write one block for every planned section id and no others. Make headings concrete, natural, and specific to the customer's desired outcome. Never turn an occupation into an awkward service noun phrase. Avoid generic AI slogans. CTAs must use a safe #anchor, https:, mailto:, or tel: destination; use #contact when facts are unavailable. claimAudit must contain only factual claims used in the copy, written so each can be matched verbatim to a research fact; use an empty array if the copy contains none. Plan Pexels-searchable environmental, product, architectural, or equipment imagery without people, faces, hands, text, logos, or watermarks. Every asset must belong to an existing section.`,
+    instructions: `${sharedInstructions}\nAct as a senior conversion copywriter. Write one block for every planned section id and no others. Keep every field concise. Make headings concrete, natural, and specific to the customer's desired outcome. Never turn an occupation into an awkward service noun phrase. Avoid generic AI slogans. CTAs must use a safe #anchor, https:, mailto:, or tel: destination; use #contact when facts are unavailable. claimAudit must contain only factual claims used in the copy, written so each can be matched verbatim to a research fact; use an empty array if the copy contains none.`,
     input: { research, ...strategyArchitecture, ...artComposition },
   });
-  await options.onStage?.("image-selection");
-  telemetry.stages.push({
-    name: "image-selection",
-    status: "completed",
-    durationMs: 0,
-    attempts: 1,
+  const mediaRationale = await runStructuredStage({
+    client,
+    telemetry,
+    model,
+    stage: "image-selection",
+    schema: mediaRationaleSchema,
+    jsonSchema: mediaRationaleJsonSchema,
+    onStage: options.onStage,
+    instructions: `${sharedInstructions}\nAct as an image editor and design critic. Plan only Pexels-searchable environmental, product, architectural, or equipment imagery without people, faces, hands, text, logos, or watermarks. Every asset must belong to an existing section and its query must be concrete enough to retrieve a relevant photograph. Then explain the approved structure and visual rationale concisely.`,
+    input: { research, ...strategyArchitecture, ...artComposition, copy: copyResult.copy },
   });
+  let copyMedia = { ...copyResult, ...mediaRationale };
 
   const normalizedComposition = {
     ...artComposition.composition,
@@ -843,23 +896,24 @@ export async function generateSiteSpecV3(
   }
   const repairableDefects = defects.filter((defect) => !defect.includes("too similar"));
   if (repairableDefects.length) {
-    copyMedia = await runStructuredStage({
+    copyResult = await runStructuredStage({
       client,
       telemetry,
       model,
       stage: "repair",
-      schema: copyMediaSchema,
-      jsonSchema: copyMediaJsonSchema,
+      schema: copyOnlySchema,
+      jsonSchema: copyOnlyJsonSchema,
       onStage: options.onStage,
-      instructions: `${sharedInstructions}\nAct as a senior repair editor. Return the complete copy, media plan, and design rationale. Correct every supplied deterministic defect without changing the approved architecture or inventing any fact. Preserve unaffected content where it already works. Every planned section must still have exactly one copy block.`,
+      instructions: `${sharedInstructions}\nAct as a senior repair editor. Return the complete copy deck. Correct every supplied deterministic defect without changing the approved architecture or inventing any fact. Preserve unaffected content where it already works. Every planned section must still have exactly one copy block.`,
       input: {
         research,
         ...strategyArchitecture,
         ...artComposition,
-        previous: copyMedia,
+        previous: copyResult,
         defects: repairableDefects,
       },
     });
+    copyMedia = { ...copyResult, ...mediaRationale };
     repairIterations = 1;
     structurallyValid = siteSpecV3Schema.parse({
       ...initial,
