@@ -297,6 +297,54 @@ export type GenerativeSiteSection = z.infer<typeof generativeSiteSectionSchema>;
 export type GenerativeSiteVariant = z.infer<typeof generativeSiteVariantSchema>;
 export type GenerativeSiteBundle = z.infer<typeof generativeSiteBundleSchema>;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function generatedCompositionSignature(variant: Record<string, unknown>) {
+  if (!Array.isArray(variant["sections"])) return "";
+  return variant["sections"]
+    .filter(isRecord)
+    .map((section) => `${String(section["kind"])}:${String(section["layout"])}`)
+    .join("|");
+}
+
+/**
+ * Structured Outputs cannot express the cross-variant uniqueness rule enforced
+ * by Zod. After the model has already had one schema-repair opportunity, this
+ * makes the smallest possible layout adjustment instead of discarding an
+ * otherwise valid five-site generation.
+ */
+export function repairDuplicateGeneratedCompositions(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value["variants"])) return value;
+  const repaired = structuredClone(value) as Record<string, unknown>;
+  if (!Array.isArray(repaired["variants"])) return repaired;
+  const seen = new Set<string>();
+
+  for (const variant of repaired["variants"]) {
+    if (!isRecord(variant) || !Array.isArray(variant["sections"])) continue;
+    let signature = generatedCompositionSignature(variant);
+    if (seen.has(signature)) {
+      for (let sectionIndex = 1; sectionIndex < variant["sections"].length; sectionIndex += 1) {
+        const section = variant["sections"][sectionIndex];
+        if (!isRecord(section)) continue;
+        const currentLayout = String(section["layout"]);
+        for (const layout of generativeLayouts) {
+          if (layout === currentLayout) continue;
+          section["layout"] = layout;
+          signature = generatedCompositionSignature(variant);
+          if (!seen.has(signature)) break;
+        }
+        if (!seen.has(signature)) break;
+        section["layout"] = currentLayout;
+      }
+    }
+    seen.add(signature);
+  }
+
+  return repaired;
+}
+
 export const demoSectionStyleOverrideSchema = z.object({
   backgroundColor: hexColorSchema,
   textColor: hexColorSchema,

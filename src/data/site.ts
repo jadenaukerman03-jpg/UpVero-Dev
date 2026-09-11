@@ -324,7 +324,7 @@ export const siteConfigSchema = z.object({
     eyebrow: z.string(),
     heading: z.string().min(1),
     items: z.array(
-      z.object({ quote: z.string().min(1), author: z.string().min(1), place: z.string().min(1) }),
+      z.object({ quote: z.string().min(1), author: z.string().min(1), place: z.string() }),
     ),
   }),
   faq: z.object({

@@ -5,12 +5,13 @@ import { validateSiteConfig, type SiteConfig } from "@/data/site";
 import {
   GENERATIVE_SITE_BUNDLE_JSON_SCHEMA,
   generativeSiteBundleSchema,
+  repairDuplicateGeneratedCompositions,
   validateGenerativeSiteBundle,
   type GenerativeSiteBundle,
 } from "@/data/generative-site";
 import { generationQualityDefinitions, type GenerationQualityMode } from "@/data/site-generation";
 import { generateSiteConfigFromLead } from "./generate-site-config-from-lead";
-import { findBannedGenericPhrases } from "./site-generation-quality";
+import { findBannedGenericPhrases, hasConcreteOfferLanguage } from "./site-generation-quality";
 
 const CREATIVE_BRIEF_LIMITS = {
   businessType: 200,
@@ -536,7 +537,7 @@ const aiContentSchema = z.object({
         z.object({
           quote: z.string().min(1),
           author: z.string().min(1),
-          place: z.string().min(1),
+          place: z.string(),
         }),
       )
       .length(3),
@@ -1100,26 +1101,31 @@ function generativeExperienceQualityIssues(
   const issues = findBannedGenericPhrases(customerFacingJson(experience).toLowerCase()).map(
     (phrase) => `Remove the generic phrase "${phrase}" from every variant.`,
   );
-  const vocabulary = [
+  const offerSources = [
     ...domainVocabulary,
     lead.industry,
     ...(lead.services ?? []),
     lead.businessDescription,
-  ]
-    .filter((value): value is string => Boolean(value?.trim()))
-    .flatMap((value) => value.toLowerCase().split(/[^a-z0-9]+/))
-    .filter((word) => word.length >= 4);
+  ];
   for (const variant of experience.variants) {
-    const hero = variant.sections[0]!.heading.toLowerCase();
+    const heroSection = variant.sections[0]!;
+    const hero = heroSection.heading.toLowerCase();
     if (
       normaliseForComparison(hero) === normaliseForComparison(lead.businessName ?? "") ||
       hero.split(/\s+/).filter(Boolean).length < 3
     ) {
       issues.push(`${variant.direction} hero must be a meaningful offer-led headline.`);
     }
-    if (vocabulary.length > 0 && !vocabulary.some((word) => hero.includes(word))) {
+    const heroIntroduction = [
+      heroSection.eyebrow,
+      heroSection.heading,
+      heroSection.body,
+      heroSection.ctaLabel,
+      ...heroSection.items.flatMap((item) => [item.title, item.body, item.meta]),
+    ].join(" ");
+    if (!hasConcreteOfferLanguage(heroIntroduction, offerSources)) {
       issues.push(
-        `${variant.direction} hero needs concrete vocabulary from this business's offer.`,
+        `${variant.direction} hero introduction needs concrete language from this business's offer.`,
       );
     }
     const repeatedHeadings = variant.sections
@@ -1279,7 +1285,13 @@ export async function createAiSiteConfig(
         phase: "site-composition-schema-retry",
       });
       if (!response.output_text) responseError("no structured content after schema retry");
-      parsed = aiContentSchema.safeParse(JSON.parse(response.output_text));
+      const retryContent = JSON.parse(response.output_text) as Record<string, unknown>;
+      parsed = aiContentSchema.safeParse({
+        ...retryContent,
+        generatedExperience: repairDuplicateGeneratedCompositions(
+          retryContent["generatedExperience"],
+        ),
+      });
       if (!parsed.success) {
         console.error(
           "OpenAI website content failed validation after retry",

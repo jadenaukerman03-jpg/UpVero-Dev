@@ -5,6 +5,8 @@ import {
   colorContrast,
   demoPresentationOverridesSchema,
   generativeDirections,
+  generativeSiteBundleSchema,
+  repairDuplicateGeneratedCompositions,
   validateGenerativeSiteBundle,
   type GenerativeDirection,
   type GenerativeSiteVariant,
@@ -140,6 +142,24 @@ describe("generative site document validation", () => {
         variants,
       }),
     );
+  });
+
+  test("repairs a duplicate composition after the model retry is exhausted", () => {
+    const variants = generativeDirections.map(variant);
+    variants[1]!.sections = structuredClone(variants[0]!.sections).map((section) => ({
+      ...section,
+      id: `${section.id}-modern`,
+    }));
+    variants[1]!.sections[0]!.heading = "A distinct modern bakery headline";
+    const duplicated = {
+      schemaVersion: 2 as const,
+      recommendedDirection: "professional" as const,
+      variants,
+    };
+    assert.equal(generativeSiteBundleSchema.safeParse(duplicated).success, false);
+
+    const repaired = repairDuplicateGeneratedCompositions(duplicated);
+    assert.equal(generativeSiteBundleSchema.safeParse(repaired).success, true);
   });
 
   test("validates safe per-section colors and Pexels image assignments", () => {

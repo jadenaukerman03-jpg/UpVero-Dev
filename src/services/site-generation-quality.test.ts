@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 
 import { validateSiteConfig } from "@/data/site";
 import { generateSiteConfigFromLead } from "./generate-site-config-from-lead";
-import { findBannedGenericPhrases } from "./site-generation-quality";
+import { findBannedGenericPhrases, hasConcreteOfferLanguage } from "./site-generation-quality";
 
 describe("website generation quality gates", () => {
   test("rejects the generic copy patterns that previously reached previews", () => {
@@ -23,6 +23,43 @@ describe("website generation quality gates", () => {
         "Clean cut lawns, tidy landscape beds, and seasonal cleanup across Elkhart County.",
       ),
       [],
+    );
+  });
+
+  test("allows natural straightforward language for customer actions", () => {
+    assert.deepEqual(
+      findBannedGenericPhrases(
+        "A clear contact section and short form make contact straightforward.",
+      ),
+      [],
+    );
+  });
+
+  test("accepts an art-directed headline when the complete hero names the offer", () => {
+    assert.equal(
+      hasConcreteOfferLanguage(
+        "The view changes up here. Build cockpit confidence through focused flight lessons and ground school.",
+        ["Flight instruction", "Private pilot flight lessons", "Ground school"],
+      ),
+      true,
+    );
+  });
+
+  test("still rejects a hero introduction unrelated to the supplied offer", () => {
+    assert.equal(
+      hasConcreteOfferLanguage("A polished experience created around your next step.", [
+        "Shoe repair",
+        "Leather restoration",
+        "Sole replacement",
+      ]),
+      false,
+    );
+  });
+
+  test("matches normal singular and plural offer wording", () => {
+    assert.equal(
+      hasConcreteOfferLanguage("Fresh pastries for the celebration table.", ["Seasonal pastry"]),
+      true,
     );
   });
 
