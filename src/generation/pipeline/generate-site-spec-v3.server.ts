@@ -13,7 +13,10 @@ import {
   validateSiteSpecV3,
   websiteStrategySchema,
   copyDeckSchema,
+  type CopyDeck,
   type GenerationStageName,
+  type InformationArchitecture,
+  type ResearchPacket,
   type SiteSpecV3,
 } from "@/generation/contracts/site-spec-v3";
 import { buildResearchPacket } from "@/generation/research/build-research-packet";
@@ -547,6 +550,96 @@ export function parseStructuredStageResponse<T>(
   return schema.parse(json);
 }
 
+function trustedDestinationFacts(research: ResearchPacket) {
+  return research.facts.filter(
+    (fact) => fact.provenance === "user-supplied" || fact.provenance === "publicly-verified",
+  );
+}
+
+function normalizedHost(value: string) {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
+}
+
+export function isGroundedCtaDestination(
+  href: string,
+  research: ResearchPacket,
+  architecture: InformationArchitecture,
+) {
+  const value = href.trim().toLowerCase();
+  if (value.startsWith("#")) {
+    const target = value.slice(1);
+    return (
+      target === "top" ||
+      architecture.pages.some((page) => page.sectionPlan.some((section) => section.id === target))
+    );
+  }
+  const facts = trustedDestinationFacts(research);
+  if (value.startsWith("tel:")) {
+    const target = value.replace(/\D/g, "");
+    return (
+      target.length >= 7 &&
+      facts.some((fact) => {
+        if (!fact.field.toLowerCase().includes("phone")) return false;
+        const known = fact.value.replace(/\D/g, "");
+        if (known.length < 7) return false;
+        return (
+          known === target ||
+          known.endsWith(target) ||
+          target.endsWith(known) ||
+          (known.length >= 10 && target.length >= 10 && known.slice(-10) === target.slice(-10))
+        );
+      })
+    );
+  }
+  if (value.startsWith("mailto:")) {
+    const target = value.slice("mailto:".length).split("?")[0];
+    return facts.some(
+      (fact) => fact.field.toLowerCase().includes("email") && fact.value.toLowerCase() === target,
+    );
+  }
+  if (value.startsWith("https:")) {
+    const targetHost = normalizedHost(value);
+    return Boolean(
+      targetHost &&
+      facts.some((fact) => {
+        const field = fact.field.toLowerCase();
+        if (!field.includes("website") && !field.includes("social")) return false;
+        return normalizedHost(fact.value) === targetHost;
+      }),
+    );
+  }
+  return false;
+}
+
+function fallbackCtaAnchor(architecture: InformationArchitecture) {
+  const sections = architecture.pages.flatMap((page) => page.sectionPlan);
+  const target =
+    sections.find((section) => section.purpose === "contact") ??
+    sections.find((section) => section.purpose === "conversion") ??
+    sections[0];
+  return target ? `#${target.id}` : "#top";
+}
+
+export function repairCopyCtaDestinations(
+  copy: CopyDeck,
+  research: ResearchPacket,
+  architecture: InformationArchitecture,
+): CopyDeck {
+  const fallback = fallbackCtaAnchor(architecture);
+  return {
+    ...copy,
+    blocks: copy.blocks.map((block) =>
+      block.cta && !isGroundedCtaDestination(block.cta.href, research, architecture)
+        ? { ...block, cta: { ...block.cta, href: fallback } }
+        : block,
+    ),
+  };
+}
+
 async function runStructuredStage<T>({
   client,
   telemetry,
@@ -667,16 +760,10 @@ function deterministicQualityIssues(lead: Lead, spec: SiteSpecV3) {
       issues.push(`Unsupported factual claim audit entry: ${audit}`);
     }
   }
-  const factualValues = spec.research.facts.map((fact) => fact.value.toLowerCase());
   for (const block of spec.copy.blocks) {
-    const href = block.cta?.href.toLowerCase();
-    if (!href || href.startsWith("#")) continue;
-    const target = href.replace(/^(mailto:|tel:)/, "").replace(/\D/g, "");
-    const grounded = factualValues.some((fact) => {
-      if (href.startsWith("tel:")) return fact.replace(/\D/g, "").includes(target);
-      return fact.includes(href.replace(/^mailto:/, "")) || href.includes(fact);
-    });
-    if (!grounded) issues.push(`CTA in ${block.id} uses an unverified external destination.`);
+    if (block.cta && !isGroundedCtaDestination(block.cta.href, spec.research, spec.architecture)) {
+      issues.push(`CTA in ${block.id} uses an unverified or unknown destination.`);
+    }
   }
   return [...new Set(issues)];
 }
@@ -818,9 +905,12 @@ export async function generateSiteSpecV3(
     schema: copyOnlySchema,
     jsonSchema: copyOnlyJsonSchema,
     onStage: options.onStage,
-    instructions: `${sharedInstructions}\nAct as a senior conversion copywriter. Write one block for every planned section id and no others. Keep every field concise. Make headings concrete, natural, and specific to the customer's desired outcome. Never turn an occupation into an awkward service noun phrase. Avoid generic AI slogans. CTAs must use a safe #anchor, https:, mailto:, or tel: destination; use #contact when facts are unavailable. claimAudit must contain only factual claims used in the copy, written so each can be matched verbatim to a research fact; use an empty array if the copy contains none.`,
+    instructions: `${sharedInstructions}\nAct as a senior conversion copywriter. Write one block for every planned section id and no others. Keep every field concise. Make headings concrete, natural, and specific to the customer's desired outcome. Never turn an occupation into an awkward service noun phrase. Avoid generic AI slogans. CTAs should use the exact id of an existing section as a #section-id anchor. Use https:, mailto:, or tel: only when that exact destination is present in verified or user-supplied research facts. claimAudit must contain only factual claims used in the copy, written so each can be matched verbatim to a research fact; use an empty array if the copy contains none.`,
     input: { research, ...strategyArchitecture, ...artComposition },
   });
+  copyResult = {
+    copy: repairCopyCtaDestinations(copyResult.copy, research, strategyArchitecture.architecture),
+  };
   const mediaRationale = await runStructuredStage({
     client,
     telemetry,
@@ -913,6 +1003,9 @@ export async function generateSiteSpecV3(
         defects: repairableDefects,
       },
     });
+    copyResult = {
+      copy: repairCopyCtaDestinations(copyResult.copy, research, strategyArchitecture.architecture),
+    };
     copyMedia = { ...copyResult, ...mediaRationale };
     repairIterations = 1;
     structurallyValid = siteSpecV3Schema.parse({
