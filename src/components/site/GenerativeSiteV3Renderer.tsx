@@ -2,6 +2,8 @@ import { ArrowUpRight } from "lucide-react";
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 
 import type { SiteConfig } from "@/data/site";
+import type { DemoVisualDirection } from "@/data/demo-themes";
+import { scaleDirectionValue, v3VisualDirectionProfiles } from "@/data/v3-visual-directions";
 import type { SiteSpecV3 } from "@/generation/contracts/site-spec-v3";
 import { createSemanticThemeTokens, type GeneratedPalette } from "@/lib/color-contrast";
 import type { DemoPresentationOverrides } from "@/data/generative-site";
@@ -73,12 +75,14 @@ export function GenerativeSiteV3Renderer({
   paletteOverride,
   fontOverride,
   presentationOverrides,
+  visualDirection = "professional",
 }: {
   config: SiteConfig;
   leadCaptureTarget?: WebsiteLeadCaptureTarget;
   paletteOverride?: GeneratedPalette;
   fontOverride?: { display: string; body: string };
   presentationOverrides?: DemoPresentationOverrides;
+  visualDirection?: DemoVisualDirection;
 }) {
   const spec = config.siteSpecV3!;
   const homePage =
@@ -89,6 +93,13 @@ export function GenerativeSiteV3Renderer({
     () => createSemanticThemeTokens(paletteOverride ?? spec.designSystem.palette),
     [paletteOverride, spec.designSystem.palette],
   );
+  const direction = v3VisualDirectionProfiles[visualDirection];
+  const radius = scaleDirectionValue(
+    spec.designSystem.surfaces.radiusPx,
+    direction.radiusScale,
+    4,
+    48,
+  );
   const style = {
     "--v3-page": tokens.pageBackground,
     "--v3-text": tokens.primaryText,
@@ -97,24 +108,26 @@ export function GenerativeSiteV3Renderer({
     "--v3-accent-text": tokens.buttonText,
     "--v3-border": tokens.borderColor,
     "--v3-focus": tokens.focusIndicator,
-    "--v3-display": fontOverride?.display ?? spec.designSystem.typography.displayFamily,
-    "--v3-heading": fontOverride?.display ?? spec.designSystem.typography.headingFamily,
-    "--v3-body": fontOverride?.body ?? spec.designSystem.typography.bodyFamily,
+    "--v3-display": fontOverride?.display ?? direction.displayFamily,
+    "--v3-heading": fontOverride?.display ?? direction.headingFamily,
+    "--v3-body": fontOverride?.body ?? direction.bodyFamily,
     "--v3-label": spec.designSystem.typography.labelFamily,
-    "--v3-radius": `${spec.designSystem.surfaces.radiusPx}px`,
-    "--v3-border-width": `${spec.designSystem.surfaces.borderWidthPx}px`,
-    "--v3-shadow": spec.designSystem.surfaces.shadow,
+    "--v3-radius": `${radius}px`,
+    "--v3-border-width": `${direction.borderWidthPx}px`,
+    "--v3-shadow": direction.shadow,
     "--v3-base": `${spec.designSystem.spacing.basePx}px`,
-    "--v3-section-min": `${spec.designSystem.spacing.sectionMinPx}px`,
-    "--v3-section-max": `${spec.designSystem.spacing.sectionMaxPx}px`,
-    "--v3-gap": `${spec.designSystem.spacing.contentGapPx}px`,
+    "--v3-section-min": `${scaleDirectionValue(spec.designSystem.spacing.sectionMinPx, direction.sectionScale, 40, 160)}px`,
+    "--v3-section-max": `${scaleDirectionValue(spec.designSystem.spacing.sectionMaxPx, direction.sectionScale, 56, 220)}px`,
+    "--v3-gap": `${scaleDirectionValue(spec.designSystem.spacing.contentGapPx, direction.gapScale, 12, 72)}px`,
     "--v3-container": `${spec.designSystem.spacing.maxContentWidthPx}px`,
     "--v3-reading": `${spec.designSystem.spacing.maxReadingWidthCh}ch`,
-    "--v3-duration": `${spec.designSystem.motion.durationMs}ms`,
-    "--v3-distance": `${spec.designSystem.motion.distancePx}px`,
+    "--v3-duration": `${scaleDirectionValue(spec.designSystem.motion.durationMs, direction.motionScale, 120, 900)}ms`,
+    "--v3-distance": `${scaleDirectionValue(spec.designSystem.motion.distancePx, direction.motionScale, 0, 40)}px`,
     "--v3-stagger": `${spec.designSystem.motion.staggerMs}ms`,
-    "--v3-letter-spacing": `${spec.designSystem.typography.letterSpacingEm}em`,
+    "--v3-letter-spacing": `${direction.letterSpacingEm}em`,
     "--v3-line-height": spec.designSystem.typography.bodyLineHeight,
+    "--v3-display-weight": direction.displayWeight,
+    "--v3-heading-weight": direction.headingWeight,
   } as CSSProperties;
 
   function openPage(pageId: string) {
@@ -135,7 +148,13 @@ export function GenerativeSiteV3Renderer({
   }
 
   return (
-    <div id="top" className="v3-site" style={style} data-generation-engine={spec.engine}>
+    <div
+      id="top"
+      className="v3-site"
+      style={style}
+      data-generation-engine={spec.engine}
+      data-visual-direction={visualDirection}
+    >
       <header className="v3-header">
         <button
           className="v3-brand"
@@ -301,7 +320,7 @@ export function GenerativeSiteV3Renderer({
                         ) : null}
                       </div>
                       {!isBackgroundMedia && layout.mediaPlacement !== "none" ? (
-                        <Media asset={media} radius={spec.designSystem.surfaces.radiusPx} />
+                        <Media asset={media} radius={radius} />
                       ) : null}
                     </div>
                   </section>
