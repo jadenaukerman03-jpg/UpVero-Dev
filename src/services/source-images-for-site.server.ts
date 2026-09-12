@@ -84,62 +84,86 @@ function orientationForAspect(aspect: SiteSpecV3["media"]["assets"][number]["asp
   return width! >= height! ? ("landscape" as const) : ("portrait" as const);
 }
 
-/** Selects licensed imagery for the variable media plan authored by V3. */
-export async function sourceImagesForSiteSpecV3(spec: SiteSpecV3): Promise<{
-  spec: SiteSpecV3;
-  sourced: number;
-  missing: string[];
-}> {
-  const usedSourceUrls = new Set<string>();
-  const resolved: SiteSpecV3["media"]["assets"] = [];
-  const missing: string[] = [];
-  for (const asset of spec.media.assets.slice(0, 16)) {
-    if (asset.imageUrl && asset.sourceUrl) {
-      usedSourceUrls.add(asset.sourceUrl);
-      resolved.push(asset);
-      continue;
-    }
-    // Bespoke AI imagery matched to this business's own art direction, first; Pexels stock is
-    // only a fallback when generation is unconfigured or fails.
-    const aiImage = await generateAiImageForAsset(
-      asset,
-      spec.designSystem.imagery,
-      spec.designSystem.conceptName,
-    );
-    if (aiImage) {
-      const { sourceUrl: _sourceUrl, attribution: _attribution, ...withoutSource } = asset;
-      resolved.push({ ...withoutSource, imageUrl: aiImage.imageUrl, provider: aiImage.provider });
-      continue;
-    }
-    const orientation = orientationForAspect(asset.aspectRatio);
-    const selected = await findPexelsImage(
-      {
-        section: asset.id,
-        dimensions: orientation === "landscape" ? "1536x1024" : "1024x1536",
-        orientation,
-        searchQuery: `${asset.query} no people no faces no hands no text no logos`,
-        searchQueries: [
-          `${asset.purpose} ${asset.query} environment no people`,
-          `${asset.query} objects equipment architecture no people`,
-        ],
-        alt: asset.alt,
-      },
-      usedSourceUrls,
-    );
-    if (!selected?.src || !selected.originalSourceUrl) {
-      missing.push(asset.id);
-      resolved.push(asset);
-      continue;
-    }
-    usedSourceUrls.add(selected.originalSourceUrl);
-    resolved.push({
+async function resolveOneV3Asset(
+  asset: SiteSpecV3["media"]["assets"][number],
+  imagery: SiteSpecV3["designSystem"]["imagery"],
+  conceptName: string,
+): Promise<{ asset: SiteSpecV3["media"]["assets"][number]; missing: boolean }> {
+  if (asset.imageUrl && asset.sourceUrl) return { asset, missing: false };
+
+  // Bespoke AI imagery matched to this business's own art direction, first; Pexels stock is
+  // only a fallback when generation is unconfigured or fails.
+  const aiImage = await generateAiImageForAsset(asset, imagery, conceptName);
+  if (aiImage) {
+    const { sourceUrl: _sourceUrl, attribution: _attribution, ...withoutSource } = asset;
+    return {
+      asset: { ...withoutSource, imageUrl: aiImage.imageUrl, provider: aiImage.provider },
+      missing: false,
+    };
+  }
+
+  const orientation = orientationForAspect(asset.aspectRatio);
+  const selected = await findPexelsImage(
+    {
+      section: asset.id,
+      dimensions: orientation === "landscape" ? "1536x1024" : "1024x1536",
+      orientation,
+      searchQuery: `${asset.query} no people no faces no hands no text no logos`,
+      searchQueries: [
+        `${asset.purpose} ${asset.query} environment no people`,
+        `${asset.query} objects equipment architecture no people`,
+      ],
+      alt: asset.alt,
+    },
+    // Each asset resolves independently now (parallelized), so cross-asset Pexels-dedup by URL
+    // no longer threads through a shared Set — an occasional repeated stock photo across two
+    // sections is a far smaller cost than a multi-minute sequential request.
+    new Set<string>(),
+  );
+  if (!selected?.src || !selected.originalSourceUrl) return { asset, missing: true };
+
+  return {
+    asset: {
       ...asset,
       imageUrl: selected.src,
       sourceUrl: selected.originalSourceUrl,
       provider: "Pexels",
       attribution: selected.attribution ?? "Photo provided by Pexels",
-    });
+    },
+    missing: false,
+  };
+}
+
+const V3_IMAGE_BATCH_SIZE = 8;
+
+/**
+ * Selects licensed/generated imagery for the variable media plan authored by V3. Resolves
+ * assets in small concurrent batches rather than one at a time — a 16-19 asset multi-page site
+ * sourced sequentially (each AI image call taking 10-20s) could take several minutes and blow
+ * past any reasonable request timeout, silently dropping the whole result.
+ */
+export async function sourceImagesForSiteSpecV3(spec: SiteSpecV3): Promise<{
+  spec: SiteSpecV3;
+  sourced: number;
+  missing: string[];
+}> {
+  const assets = spec.media.assets.slice(0, 16);
+  const resolved: SiteSpecV3["media"]["assets"] = [];
+  const missing: string[] = [];
+
+  for (let i = 0; i < assets.length; i += V3_IMAGE_BATCH_SIZE) {
+    const batch = assets.slice(i, i + V3_IMAGE_BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map((asset) =>
+        resolveOneV3Asset(asset, spec.designSystem.imagery, spec.designSystem.conceptName),
+      ),
+    );
+    for (const result of results) {
+      resolved.push(result.asset);
+      if (result.missing) missing.push(result.asset.id);
+    }
   }
+
   return {
     spec: validateSiteSpecV3({ ...spec, media: { assets: resolved } }),
     sourced: resolved.filter((asset) => asset.imageUrl).length,

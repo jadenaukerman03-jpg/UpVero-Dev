@@ -227,12 +227,14 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
     try {
       setIsGeneratingImages(true);
       setGeneratedImages(null);
-      setMessage("Generating website content with OpenAI…");
+      setMessage(
+        "Generating website content with OpenAI… this can take up to a minute at higher quality tiers.",
+      );
       const lead = createLead(readLeadInput(form));
       const scope = await requireOperationScope(lead.businessName, lead.industry);
       const config = await unwrapProtectedOperation(generateWithAi({ data: { ...scope, lead } }));
       setPreviewConfig(config);
-      setMessage("Website content is ready. Sourcing imagery…");
+      setMessage("Website content is ready. Sourcing imagery — this can take another 30-60 seconds…");
 
       if (config.siteSpecV3) {
         // The V3 renderer reads siteSpecV3.media.assets, not the legacy assets.hero/about/gallery
