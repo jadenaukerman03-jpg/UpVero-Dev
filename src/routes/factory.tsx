@@ -10,7 +10,10 @@ import { visualStyleOptions, type ImageSelectionResult, type VisualStyle } from 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { createBusinessOperationScope, saveGeneratedWebsite } from "@/services/customer-data";
 import { generateSiteConfigWithAI } from "@/services/generate-site-config-with-ai";
-import { sourceImagesForSiteServer } from "@/services/source-images-for-site";
+import {
+  sourceImagesForSiteServer,
+  sourceSiteSpecV3ImagesServer,
+} from "@/services/source-images-for-site";
 import { researchBusinessServer } from "@/services/research-business";
 
 export const Route = createFileRoute("/factory")({ component: FactoryRoute });
@@ -95,6 +98,7 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
   const [isResearching, setIsResearching] = useState(false);
   const generateWithAi = useServerFn(generateSiteConfigWithAI);
   const sourceImages = useServerFn(sourceImagesForSiteServer);
+  const sourceV3Images = useServerFn(sourceSiteSpecV3ImagesServer);
   const runResearch = useServerFn(researchBusinessServer);
   const persistWebsite = useServerFn(saveGeneratedWebsite);
   const createOperationScope = useServerFn(createBusinessOperationScope);
@@ -228,7 +232,46 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
       const scope = await requireOperationScope(lead.businessName, lead.industry);
       const config = await unwrapProtectedOperation(generateWithAi({ data: { ...scope, lead } }));
       setPreviewConfig(config);
-      setMessage("Website content is ready. Searching Pexels…");
+      setMessage("Website content is ready. Sourcing imagery…");
+
+      if (config.siteSpecV3) {
+        // The V3 renderer reads siteSpecV3.media.assets, not the legacy assets.hero/about/gallery
+        // fields — this must source directly into the spec or every page renders image-free.
+        const v3Result = await unwrapProtectedOperation(
+          sourceV3Images({ data: { ...scope, spec: config.siteSpecV3 } }),
+        );
+        const [hero, about, ...gallery] = v3Result.spec.media.assets;
+        setPreviewConfig(
+          validateSiteConfig({
+            ...config,
+            siteSpecV3: v3Result.spec,
+            seo: hero?.imageUrl ? { ...config.seo, socialImage: hero.imageUrl } : config.seo,
+            assets: {
+              hero: hero?.imageUrl
+                ? { src: hero.imageUrl, alt: hero.alt, brief: hero.query }
+                : config.assets.hero,
+              about: about?.imageUrl
+                ? { src: about.imageUrl, alt: about.alt, brief: about.query }
+                : config.assets.about,
+              gallery: gallery.slice(0, 4).map((asset) => ({
+                ...(asset.imageUrl ? { src: asset.imageUrl } : {}),
+                alt: asset.alt,
+                brief: asset.query,
+              })),
+            },
+            assetAttributions: v3Result.spec.media.assets
+              .filter((asset) => asset.sourceUrl && asset.attribution)
+              .map((asset) => ({ label: asset.attribution!, href: asset.sourceUrl! })),
+          }),
+        );
+        setMessage(
+          v3Result.missing.length === 0
+            ? `Generated AI content and sourced ${v3Result.sourced} images across the site.`
+            : `Generated AI content. ${v3Result.sourced} images sourced; ${v3Result.missing.length} slot(s) remain image-free.`,
+        );
+        return;
+      }
+
       const result = await unwrapProtectedOperation(
         sourceImages({ data: { ...scope, lead, style: visualStyle } }),
       );

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { leadSchema } from "@/data/leads";
 import { siteConfigSchema } from "@/data/site";
 import { imageSections, type ImageSection } from "@/data/visuals";
+import { siteSpecV3Schema } from "@/generation/contracts/site-spec-v3";
 const sourcingRequestSchema = z.object({
   accessToken: z.string().max(4096).optional(),
   businessId: z.string().uuid(),
@@ -35,6 +36,36 @@ export const sourceImagesForSiteServer = createServerFn({ method: "POST" })
     await authorizeProviderOperation(data, { operation: "image_sourcing", adminOnly: true });
     const { sourceImagesForSite } = await import("./source-images-for-site.server");
     return sourceImagesForSite(data);
+  });
+
+const siteSpecV3ImageRequestSchema = z.object({
+  accessToken: z.string().max(4096).optional(),
+  businessId: z.string().uuid(),
+  spec: siteSpecV3Schema,
+});
+
+/**
+ * Sources imagery for a V3 media plan (AI-generated first, Pexels fallback) and returns the
+ * updated spec. Stateless — the caller (the admin tool, before the site is saved) merges the
+ * result into its in-memory SiteConfig itself. Without this, admin-generated V3 sites keep every
+ * media slot empty since the older Pexels-only path (sourceImagesForSite) only ever fills the
+ * legacy assets.hero/about/gallery fields the V3 renderer doesn't read.
+ */
+export const sourceSiteSpecV3ImagesServer = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    const parsed = siteSpecV3ImageRequestSchema.safeParse(data);
+    if (parsed.success) return parsed.data;
+    throw new Response(JSON.stringify({ error: "Invalid image sourcing request." }), {
+      status: 400,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  })
+  .handler(async ({ data }) => {
+    const { authorizeProviderOperation } =
+      await import("./provider-operation-authorization.server");
+    await authorizeProviderOperation(data, { operation: "image_sourcing", adminOnly: true });
+    const { sourceImagesForSiteSpecV3 } = await import("./source-images-for-site.server");
+    return sourceImagesForSiteSpecV3(data.spec);
   });
 
 /** Sources Pexels assets and persists them only on the caller's own draft. */
