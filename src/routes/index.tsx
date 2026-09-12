@@ -84,8 +84,8 @@ function Index() {
               your plate.
             </p>
             <div className="uv-modern-hero-actions">
-              <Link to="/draft" className="uv-button uv-button-primary">
-                Build my free preview <ArrowUpRight size={17} />
+              <Link to="/contact" className="uv-button uv-button-primary">
+                Request my free preview <ArrowUpRight size={17} />
               </Link>
               <Link to="/pricing" className="uv-modern-text-action">
                 Explore plans <ArrowRight size={16} />
@@ -200,8 +200,8 @@ function Index() {
               <p className="uv-eyebrow">A simpler way to launch</p>
               <h2>From idea to online in four clear moves.</h2>
             </div>
-            <Link to="/draft" className="uv-modern-text-action">
-              Start your preview <ArrowRight size={16} />
+            <Link to="/contact" className="uv-modern-text-action">
+              Request your preview <ArrowRight size={16} />
             </Link>
           </div>
           <ol className="uv-modern-process">
@@ -233,8 +233,8 @@ function Index() {
             Upvero gives local service businesses a focused, professional online presence without
             turning website management into another job.
           </p>
-          <Link to="/draft" className="uv-button uv-button-secondary">
-            See your website preview <ArrowUpRight size={16} />
+          <Link to="/contact" className="uv-button uv-button-secondary">
+            Request your website preview <ArrowUpRight size={16} />
           </Link>
         </div>
         <div className="uv-modern-industry-cloud" aria-label="Businesses Upvero supports">
@@ -305,14 +305,14 @@ function Index() {
       </section>
 
       <section className="uv-modern-final-section uv-container">
-        <Link to="/draft" className="uv-modern-final-cta uv-clickable-card">
+        <Link to="/contact" className="uv-modern-final-cta uv-clickable-card">
           <span className="uv-modern-final-orbit uv-modern-final-orbit-one" aria-hidden="true" />
           <span className="uv-modern-final-orbit uv-modern-final-orbit-two" aria-hidden="true" />
           <p className="uv-eyebrow">Your first step is free</p>
           <h2>See what your next website could look like.</h2>
-          <p>Tell us about your business and start your private preview. No card required.</p>
+          <p>Email us about your business and we&apos;ll send your private preview. No card required.</p>
           <span className="uv-button uv-button-primary">
-            Build my free preview <ArrowUpRight size={17} />
+            Request my free preview <ArrowUpRight size={17} />
           </span>
         </Link>
       </section>

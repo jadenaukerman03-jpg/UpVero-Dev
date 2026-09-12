@@ -7,6 +7,7 @@ import type {
 import { validateSiteSpecV3, type SiteSpecV3 } from "@/generation/contracts/site-spec-v3";
 import { createVisualProfile, imageAlt } from "./create-visual-profile";
 import { findPexelsImage } from "./pexels-image-provider.server";
+import { generateAiImageForAsset } from "./openai-image-provider.server";
 
 function requirementFor(
   request: ImageSourcingRequest,
@@ -96,6 +97,18 @@ export async function sourceImagesForSiteSpecV3(spec: SiteSpecV3): Promise<{
     if (asset.imageUrl && asset.sourceUrl) {
       usedSourceUrls.add(asset.sourceUrl);
       resolved.push(asset);
+      continue;
+    }
+    // Bespoke AI imagery matched to this business's own art direction, first; Pexels stock is
+    // only a fallback when generation is unconfigured or fails.
+    const aiImage = await generateAiImageForAsset(
+      asset,
+      spec.designSystem.imagery,
+      spec.designSystem.conceptName,
+    );
+    if (aiImage) {
+      const { sourceUrl: _sourceUrl, attribution: _attribution, ...withoutSource } = asset;
+      resolved.push({ ...withoutSource, imageUrl: aiImage.imageUrl, provider: aiImage.provider });
       continue;
     }
     const orientation = orientationForAspect(asset.aspectRatio);

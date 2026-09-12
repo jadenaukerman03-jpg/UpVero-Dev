@@ -73,35 +73,32 @@ function ContactPage() {
     <MarketingLayout>
       <section className="uv-contact uv-container">
         <div>
-          <p className="uv-eyebrow">Free website preview</p>
+          <p className="uv-eyebrow">Personalized demo</p>
           <h1>
             Let’s build your <span>free preview</span>.
           </h1>
           <p className="uv-lead">
-            Start by creating a private account, then use the protected Upvero workflow to create
-            and save your website draft.
+            Upvero demos are researched and designed individually for each business — send us a
+            message below and we’ll build yours and follow up with a private preview link.
           </p>
           <div className="uv-contact-details">
             <p>
-              <Mail size={17} /> Your account keeps your draft private.
+              <Mail size={17} /> No account or form required to request one.
             </p>
             <p>
-              <Phone size={17} /> You can review your website before secure checkout.
+              <Phone size={17} /> You can review your website before deciding to buy.
             </p>
           </div>
         </div>
         <aside className="uv-contact-card">
           <CheckCircle2 size={32} aria-hidden="true" />
-          <h2>Start your preview securely</h2>
+          <h2>Request your demo</h2>
           <p>
-            Upvero’s current flow creates website drafts in the authenticated workspace so a draft
-            cannot be claimed by another customer.
+            Tell us your business name, industry, and city in the message below and we’ll reach
+            out with your preview.
           </p>
-          <Link to="/account" className="uv-button uv-button-primary">
-            Create account or sign in
-          </Link>
           <Link to="/dashboard" className="uv-text-link">
-            Already signed in? Open your dashboard →
+            Already have a website with Upvero? Open your dashboard →
           </Link>
         </aside>
       </section>

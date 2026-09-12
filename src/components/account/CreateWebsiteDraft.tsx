@@ -1,30 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, LoaderCircle, Sparkles } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 
 import { createLead } from "@/data/leads";
-import { generateSiteConfigFromLead } from "@/services/generate-site-config-from-lead";
 import {
   generateOwnedDraftSiteConfigWithAI,
   refineOwnedDraftSiteConfigWithAI,
 } from "@/services/generate-site-config-with-ai";
 import { sourceOwnedDraftImages } from "@/services/source-images-for-site";
-import {
-  getOwnedWebsite,
-  saveGeneratedWebsite,
-  updateOwnedWebsiteVisualDirection,
-} from "@/services/customer-data";
+import { getOwnedWebsite, updateOwnedWebsiteVisualDirection } from "@/services/customer-data";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { SitePreview } from "@/components/site/SitePreview";
 import type { SiteConfig } from "@/data/site";
 import type { DemoVisualDirection } from "@/data/demo-themes";
-import {
-  generationQualityDefinitions,
-  generationQualityModes,
-  type GenerationQualityMode,
-} from "@/data/site-generation";
+import type { GenerationQualityMode } from "@/data/site-generation";
 import type { PreviewRenderAudit } from "@/lib/preview-audit";
+
+const supportEmail = import.meta.env["VITE_UPVERO_SUPPORT_EMAIL"] as string | undefined;
 
 type AuthState =
   | { status: "loading" }
@@ -64,11 +57,6 @@ function accountRedirect() {
   window.location.replace("/account?next=%2Fdraft");
 }
 
-function normalizeColor(value: string): string | undefined {
-  const trimmed = value.trim();
-  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : undefined;
-}
-
 function isLegacyGenericFallback(config: SiteConfig) {
   const copy =
     `${config.hero.headline} ${config.services.heading} ${config.services.items.map((item) => item.title).join(" ")}`.toLowerCase();
@@ -102,7 +90,6 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
   const [saving, setSaving] = useState(false);
   const [updatingDirection, setUpdatingDirection] = useState(false);
   const getWebsite = useServerFn(getOwnedWebsite);
-  const saveWebsite = useServerFn(saveGeneratedWebsite);
   const generateAiConfig = useServerFn(generateOwnedDraftSiteConfigWithAI);
   const refineAiConfig = useServerFn(refineOwnedDraftSiteConfigWithAI);
   const sourceDraftImages = useServerFn(sourceOwnedDraftImages);
@@ -179,10 +166,6 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       active = false;
     };
   }, [auth, getWebsite, websiteId]);
-
-  function update<K extends keyof DraftFields>(key: K, value: DraftFields[K]) {
-    setFields((current) => ({ ...current, [key]: value }));
-  }
 
   function currentLead() {
     return createLead({
@@ -347,52 +330,6 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
     }
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (auth.status !== "authenticated") return;
-    setSaving(true);
-    setNotice("");
-    try {
-      const lead = currentLead();
-      const primaryColor = normalizeColor(fields.primaryColor);
-      const config = {
-        ...generateSiteConfigFromLead(lead),
-        generation: {
-          status: "pending",
-          qualityMode,
-          estimatedCostCents: qualityMode === "efficient" ? 2.5 : qualityMode === "studio" ? 8 : 30,
-          revision: 0,
-        },
-        design: primaryColor
-          ? { visualDirection: "professional", primaryColor }
-          : { visualDirection: "professional" },
-      } satisfies SiteConfig;
-      const saved = await saveWebsite({
-        data: {
-          accessToken: auth.accessToken,
-          businessName: fields.businessName,
-          industry: fields.category || undefined,
-          config,
-        },
-      });
-      if (saved instanceof Response) throw new Error("Unable to save your website draft.");
-      setSavedWebsiteId(saved.id);
-      setSavedBusinessId(saved.business_id);
-      setPreview(undefined);
-      window.history.replaceState({}, "", `/draft?website=${saved.id}`);
-      try {
-        await personalizeDraft(saved.business_id, saved.id);
-      } catch {
-        setGenerationFailed(true);
-        setNotice(DEMO_UNAVAILABLE_MESSAGE);
-      }
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to create your website draft.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   if (auth.status === "loading") {
     return (
       <main className="uv-center-state">
@@ -420,150 +357,21 @@ export function CreateWebsiteDraft({ websiteId }: { websiteId?: string }) {
       </header>
       <main className="uv-dashboard uv-container">
         <p className="uv-eyebrow">Private website draft</p>
-        <h1>{websiteId ? "Your website preview" : "Create your website draft"}</h1>
-        <p className="uv-lead">
-          Start with what you know. You can add the remaining details later.
-        </p>
+        <h1>{websiteId ? "Your website preview" : "Demos are invite-only"}</h1>
         {!websiteId && (
-          <form className="uv-auth-form uv-draft-form" onSubmit={submit}>
-            <label>
-              Business name
-              <input
-                className="uv-input"
-                required
-                maxLength={160}
-                value={fields.businessName}
-                onChange={(event) => update("businessName", event.target.value)}
-              />
-            </label>
-            <label>
-              Business category <span>Optional</span>
-              <input
-                className="uv-input"
-                maxLength={160}
-                placeholder="e.g. Residential roofing"
-                value={fields.category}
-                onChange={(event) => update("category", event.target.value)}
-              />
-            </label>
-            <label>
-              City <span>Optional</span>
-              <input
-                className="uv-input"
-                maxLength={120}
-                value={fields.city}
-                onChange={(event) => update("city", event.target.value)}
-              />
-            </label>
-            <label>
-              State <span>Optional</span>
-              <input
-                className="uv-input"
-                maxLength={40}
-                value={fields.state}
-                onChange={(event) => update("state", event.target.value)}
-              />
-            </label>
-            <label>
-              Phone number <span>Optional</span>
-              <input
-                className="uv-input"
-                type="tel"
-                maxLength={80}
-                value={fields.phone}
-                onChange={(event) => update("phone", event.target.value)}
-              />
-            </label>
-            <label>
-              Email <span>Optional</span>
-              <input
-                className="uv-input"
-                type="email"
-                maxLength={320}
-                value={fields.email}
-                onChange={(event) => update("email", event.target.value)}
-              />
-            </label>
-            <label>
-              Existing website <span>Optional</span>
-              <input
-                className="uv-input"
-                type="url"
-                maxLength={2048}
-                placeholder="https://example.com"
-                value={fields.website}
-                onChange={(event) => update("website", event.target.value)}
-              />
-            </label>
-            <label>
-              Service area <span>Optional</span>
-              <input
-                className="uv-input"
-                maxLength={500}
-                placeholder="e.g. Elkhart County, Indiana"
-                value={fields.serviceArea}
-                onChange={(event) => update("serviceArea", event.target.value)}
-              />
-            </label>
-            <label>
-              Primary color <span>Optional, #RRGGBB</span>
-              <input
-                className="uv-input"
-                pattern="#[0-9a-fA-F]{6}"
-                placeholder="#E45F31"
-                value={fields.primaryColor}
-                onChange={(event) => update("primaryColor", event.target.value)}
-              />
-            </label>
-            <label className="uv-draft-wide">
-              Business summary <span>Required</span>
-              <textarea
-                className="uv-input"
-                rows={4}
-                required
-                maxLength={8000}
-                placeholder="Tell us what your business sells or does to make money, and what you want your website to look and feel like."
-                value={fields.description}
-                onChange={(event) => update("description", event.target.value)}
-              />
-            </label>
-            <fieldset className="uv-draft-wide uv-quality-fieldset">
-              <legend>Preview quality</legend>
-              <div className="uv-quality-options">
-                {generationQualityModes.map((mode) => {
-                  const option = generationQualityDefinitions[mode];
-                  return (
-                    <label
-                      key={mode}
-                      className={`uv-quality-option ${qualityMode === mode ? "is-selected" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="qualityMode"
-                        value={mode}
-                        checked={qualityMode === mode}
-                        onChange={() => setQualityMode(mode)}
-                      />{" "}
-                      <strong>{option.label}</strong>
-                      <span>{option.description}</span>
-                      <small>{option.estimatedCostLabel}</small>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-            <button className="uv-button uv-button-primary uv-draft-wide" disabled={saving}>
-              {saving ? (
-                <>
-                  <LoaderCircle className="animate-spin" size={16} /> Creating your preview…
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} /> Create private preview
-                </>
-              )}
-            </button>
-          </form>
+          <div className="uv-empty-card">
+            <Sparkles size={24} aria-hidden="true" />
+            <h2>Demos are created for you personally</h2>
+            <p>
+              Upvero demos are researched and built individually for each business, then sent
+              directly to the owner. If you&apos;d like one, email us and we&apos;ll reach out.
+            </p>
+            {supportEmail ? (
+              <a href={`mailto:${supportEmail}`} className="uv-button uv-button-primary">
+                Email {supportEmail}
+              </a>
+            ) : null}
+          </div>
         )}
         {notice ? (
           <p className="uv-notice" role="status">

@@ -910,7 +910,8 @@ export function RegistryPipeline() {
   const [selected, setSelected] = useState<string[]>([]);
   const [minimumScore, setMinimumScore] = useState(0);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [demoQualityMode, setDemoQualityMode] = useState<GenerationQualityMode>("efficient");
+  // Demos are sent directly to real prospects — default to the highest-quality tier.
+  const [demoQualityMode, setDemoQualityMode] = useState<GenerationQualityMode>("signature");
   const createImport = useServerFn(createRegistryImport);
   const importBatch = useServerFn(importRegistryBatch);
   const completeImport = useServerFn(completeRegistryImport);

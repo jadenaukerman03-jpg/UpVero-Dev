@@ -409,7 +409,9 @@ export const queueCandidateAction = createServerFn({ method: "POST" })
         registryId: z.string().uuid(),
         candidateIds: z.array(z.string().uuid()).min(1).max(50),
         action: z.enum(["research", "demo"]),
-        qualityMode: z.enum(generationQualityModes).default("efficient"),
+        // Demos generated here are sent directly to real prospects to close sales — default to
+        // the highest-quality tier rather than the cheap batch-research tier.
+        qualityMode: z.enum(generationQualityModes).default("signature"),
       })
       .parse(data),
   )

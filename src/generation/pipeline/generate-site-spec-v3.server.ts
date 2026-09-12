@@ -1106,14 +1106,19 @@ export async function generateSiteSpecV3(
   };
 
   await options.onStage?.("specification-validation");
+  const MAX_REPAIR_ITERATIONS = 3;
   let repairIterations = 0;
   let structurallyValid = siteSpecV3Schema.parse(initial);
   let defects = deterministicQualityIssues(lead, structurallyValid);
   if (maximumSimilarity > 0.88) {
     defects.push("The generated structure is too similar to a recent UpVero website.");
   }
-  const repairableDefects = defects.filter((defect) => !defect.includes("too similar"));
-  if (repairableDefects.length) {
+  let repairableDefects = defects.filter((defect) => !defect.includes("too similar"));
+  // Repeat the repair pass while fixable defects remain, up to the schema's declared maximum.
+  // A defect list that stops shrinking (the model can't resolve it) breaks the loop early rather
+  // than spending the full budget on no-op repairs.
+  while (repairableDefects.length && repairIterations < MAX_REPAIR_ITERATIONS) {
+    const previousDefectCount = repairableDefects.length;
     copyResult = await runStructuredStage({
       client,
       telemetry,
@@ -1135,7 +1140,7 @@ export async function generateSiteSpecV3(
       copy: repairCopyCtaDestinations(copyResult.copy, research, strategyArchitecture.architecture),
     };
     copyMedia = { ...copyResult, ...mediaRationale };
-    repairIterations = 1;
+    repairIterations += 1;
     structurallyValid = siteSpecV3Schema.parse({
       ...initial,
       ...copyMedia,
@@ -1145,6 +1150,8 @@ export async function generateSiteSpecV3(
     if (maximumSimilarity > 0.88) {
       defects.push("The generated structure is too similar to a recent UpVero website.");
     }
+    repairableDefects = defects.filter((defect) => !defect.includes("too similar"));
+    if (repairableDefects.length >= previousDefectCount) break;
   }
   const spec = validateSiteSpecV3({
     ...structurallyValid,
