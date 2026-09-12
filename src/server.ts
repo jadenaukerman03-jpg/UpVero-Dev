@@ -47,7 +47,8 @@ function withSecurityHeaders(response: Response): Response {
       "Content-Security-Policy",
       "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; " +
         "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://images.pexels.com; " +
+        "font-src 'self' https://fonts.gstatic.com; " +
+        "img-src 'self' data: https://images.pexels.com https://kvgjtbulyuepmbhoflvi.supabase.co; " +
         "connect-src 'self' https://kvgjtbulyuepmbhoflvi.supabase.co;",
     );
   }
