@@ -23,8 +23,14 @@ export async function generateAiImageForAsset(
   conceptName: string,
 ): Promise<{ imageUrl: string; provider: string } | undefined> {
   const apiKey = process.env["OPENAI_API_KEY"];
-  if (!apiKey) return undefined;
-  if (process.env["IMAGE_PROVIDER"] === "pexels") return undefined;
+  if (!apiKey) {
+    console.error(`[ai-image] skipped ${asset.id}: OPENAI_API_KEY is not configured`);
+    return undefined;
+  }
+  if (process.env["IMAGE_PROVIDER"] === "pexels") {
+    console.error(`[ai-image] skipped ${asset.id}: IMAGE_PROVIDER=pexels`);
+    return undefined;
+  }
 
   const cropStyle: Record<typeof imagery.cropBehavior, string> = {
     documentary: "candid documentary photography, natural unposed moments",
@@ -45,7 +51,10 @@ export async function generateAiImageForAsset(
     });
 
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return undefined;
+    if (!b64) {
+      console.error(`[ai-image] ${asset.id}: no b64_json in response`, JSON.stringify(response));
+      return undefined;
+    }
 
     const bytes = Buffer.from(b64, "base64");
     const cacheKey = `ai-${asset.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -56,13 +65,19 @@ export async function generateAiImageForAsset(
       .from(STORAGE_BUCKET)
       .upload(path, bytes, { contentType: "image/png", upsert: false });
     if (uploadError) {
-      console.error("Failed to persist AI-generated image", uploadError);
+      console.error(
+        `[ai-image] ${asset.id}: Supabase Storage upload failed: ${JSON.stringify(uploadError)}`,
+      );
       return undefined;
     }
     const { data: publicUrl } = admin.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    console.error(`[ai-image] ${asset.id}: succeeded -> ${publicUrl.publicUrl}`);
     return { imageUrl: publicUrl.publicUrl, provider: "OpenAI" };
   } catch (error) {
-    console.error(`AI image generation failed for asset ${asset.id}`, error);
+    const err = error as { status?: unknown; code?: unknown; message?: unknown; name?: unknown };
+    console.error(
+      `[ai-image] ${asset.id}: generation threw — status=${err?.status} code=${err?.code} name=${err?.name} message=${err?.message}`,
+    );
     return undefined;
   }
 }

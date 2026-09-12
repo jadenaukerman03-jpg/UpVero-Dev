@@ -103,23 +103,31 @@ async function resolveOneV3Asset(
   }
 
   const orientation = orientationForAspect(asset.aspectRatio);
-  const selected = await findPexelsImage(
-    {
-      section: asset.id,
-      dimensions: orientation === "landscape" ? "1536x1024" : "1024x1536",
-      orientation,
-      searchQuery: `${asset.query} no people no faces no hands no text no logos`,
-      searchQueries: [
-        `${asset.purpose} ${asset.query} environment no people`,
-        `${asset.query} objects equipment architecture no people`,
-      ],
-      alt: asset.alt,
-    },
-    // Each asset resolves independently now (parallelized), so cross-asset Pexels-dedup by URL
-    // no longer threads through a shared Set — an occasional repeated stock photo across two
-    // sections is a far smaller cost than a multi-minute sequential request.
-    new Set<string>(),
-  );
+  let selected: Awaited<ReturnType<typeof findPexelsImage>>;
+  try {
+    selected = await findPexelsImage(
+      {
+        section: asset.id,
+        dimensions: orientation === "landscape" ? "1536x1024" : "1024x1536",
+        orientation,
+        searchQuery: `${asset.query} no people no faces no hands no text no logos`,
+        searchQueries: [
+          `${asset.purpose} ${asset.query} environment no people`,
+          `${asset.query} objects equipment architecture no people`,
+        ],
+        alt: asset.alt,
+      },
+      // Each asset resolves independently now (parallelized), so cross-asset Pexels-dedup by URL
+      // no longer threads through a shared Set — an occasional repeated stock photo across two
+      // sections is a far smaller cost than a multi-minute sequential request.
+      new Set<string>(),
+    );
+  } catch (error) {
+    // A Pexels failure (missing key, rate limit, network) must not take down the whole batch —
+    // an uncaught throw here previously rejected the entire Promise.all for every asset in it.
+    console.error(`[pexels-fallback] ${asset.id}: ${error instanceof Error ? error.message : error}`);
+    return { asset, missing: true };
+  }
   if (!selected?.src || !selected.originalSourceUrl) return { asset, missing: true };
 
   return {
@@ -147,7 +155,9 @@ export async function sourceImagesForSiteSpecV3(spec: SiteSpecV3): Promise<{
   sourced: number;
   missing: string[];
 }> {
-  const assets = spec.media.assets.slice(0, 16);
+  // A multi-page site can plan more than 16 media slots (a 6-page site easily plans 19-25) — the
+  // old cap silently dropped every asset past it from the final spec, permanently image-free.
+  const assets = spec.media.assets.slice(0, 32);
   const resolved: SiteSpecV3["media"]["assets"] = [];
   const missing: string[] = [];
 

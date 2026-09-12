@@ -594,7 +594,7 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
               />
             </label>
             <label className="text-sm font-medium sm:col-span-2">
-              Visual direction
+              Legacy fallback style
               <select
                 value={visualStyle}
                 onChange={(event) => setVisualStyle(event.target.value as VisualStyle)}
@@ -607,7 +607,9 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
                 ))}
               </select>
               <span className="mt-1 block font-normal text-ink/55">
-                Preview the same content through a different adaptive art direction.
+                Has no effect on a normal AI-generated site — the AI already chooses its own
+                design system. This only applies if generation falls back to the older,
+                non-AI template.
               </span>
             </label>
             <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
@@ -650,10 +652,14 @@ export function AdminResearchTool({ embedded = false }: { embedded?: boolean }) 
             </button>
           </div>
           <SitePreview
-            config={{
-              ...previewConfig,
-              design: { ...previewConfig.design, visualDirection: visualStyle },
-            }}
+            config={
+              previewConfig.siteSpecV3
+                ? previewConfig
+                : {
+                    ...previewConfig,
+                    design: { ...previewConfig.design, visualDirection: visualStyle },
+                  }
+            }
             showVisualDirectionLayout
           />
         </section>
